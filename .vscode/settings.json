@@ -1,0 +1,11 @@
+{
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    {
+      "language": "lightscript",
+      "autoFix": true
+    }
+  ],
+  "debug.allowBreakpointsEverywhere": true
+}

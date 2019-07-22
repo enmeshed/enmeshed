@@ -1,0 +1,59 @@
+function eqSet(as, bs) {
+    if (as.size !== bs.size) return false
+    for (var a of as) if (!bs.has(a)) return false
+    return true
+}
+
+class Resource:
+  static kind = "resource"
+  name = null
+  __meta = {
+    changed: false
+    environment: null
+    templateData: {}
+    localData: {}
+    data: {}
+  }
+
+  _isDirty(): boolean ->
+    this.__meta.changed
+
+  _setData(templateData, localData): boolean ->
+    this.__meta.templateData = (templateData or this.__meta.templateData)
+    this.__meta.localData = (localData or this.__meta.localData)
+    lastData = this.__meta.data
+    this.__meta.data = Object.assign({}, this.__meta.templateData, this.__meta.localData)
+    if not isEqual(lastData, this.__meta.data):
+      lastName = this.name
+      Object.assign(this, this.__meta.data)
+      this.name = lastName
+      this.__meta.changed = true
+      true
+    else:
+      false
+
+
+export class Service extends Resource:
+  getProvider() -> this.__meta.provider
+
+  _findProvider(): boolean ->
+    { environment } = this.__meta
+    lastProvider = this.__meta.provider
+    providerName = environment.getProviderNameForServiceName(this.name)
+    this.__meta.provider = environment.getProvider(providerName)
+    if lastProvider != this.__meta.provider:
+      this.__meta.changed = true
+      true
+    else:
+      false
+
+export class Provider extends Resource:
+  getServiceSet(): Set -> this.__meta.services
+
+  _findServices(): boolean ->
+    { environment } = this.__meta
+    lastServices = this.__meta.services
+    serviceNames = environment.getServiceNamesForProviderName(this.name)
+    this.services = env.getServicesForServiceNames(serviceNames)
+    if not eqSet(lastServices, this.services):
+      this.environment.providerWasChanged(this)

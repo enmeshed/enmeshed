@@ -1,0 +1,140 @@
+import { ResourceTypeData } from './Resource'
+debug = require('debug')('node-control-plane:environment')
+obnoxious = require('debug')('node-control-plane:environment:obnoxious')
+
+export class Environment:
+  id: string = ""
+  controller = null
+  // Version for each resource type is an auto-incrementing number
+  version = new ResourceTypeData()
+  // Data for each resource type is a Hash<Name, Resource>
+  data = new ResourceTypeData()
+  // Nodes that are members of this environment
+  nodes = []
+  // Version nonce string added to each version when propagating to Envoy
+  versionNonce: string = ""
+
+  constructor(controller, id) ->
+    this.controller = controller
+    this.id = id or ""
+    this.version._set([0,0,0,0,0])
+    // XXX: do something better than a random number
+    this.versionNonce = `${this.id}_${Math.floor(Math.random()*100000)}`
+
+  nodeWillJoin(node): void ->
+    if this.nodes.find(x -> x == node):
+      throw new Error(`Environment ${this.id}: node ${node.key} was added twice`)
+    this.nodes.push(node)
+    debug("environment", this.id,": node", node.key, "joined")
+    obnoxious("environment", this.id,"membership:", this.nodes.map(x -> x.key))
+
+  nodeDidLeave(node): void ->
+    if not this.nodes.find(x -> x == node):
+      throw new Error(`Environment ${this.id}: node ${node.key} was deleted twice`)
+    this.nodes = this.nodes.filter(x -> x != node)
+    debug("environment", this.id, ": node", node.key, "left")
+    obnoxious("environment", this.id,"membership:", this.nodes.map(x -> x.key))
+
+  // Answer a discovery request for a list of named resources of a given type.
+  // For empty name lists, just return all resources of the type.
+  getMatchingResources(type, names) ->
+    version = this.version.get(type)
+    allResources = this.data.get(type)
+    result = if (not allResources) or (not names) or (names.length == 0):
+      [version, allResources or {}]
+    else:
+      [
+        version
+        // Filter resources by requested names
+        {...for elem e in names:
+          if allResources[e]: {[e]: allResources[e]}
+        }
+      ]
+    obnoxious("getMatchingResources", type.typeId, names, result)
+    result
+
+  hasResourcesOfType(type): boolean ->
+    data = this.data.get(type)
+    if data and Object.keys(data).length > 0: true else: false
+
+  _setResources(type, resourceList): void ->
+    nextData = {...for elem resource in resourceList:
+      {[type.getResourceName(resource)]: resource}
+    }
+    this.data.set(type, nextData)
+
+  _clearResources(type): void ->
+    this.data.set(type, null)
+
+  _bumpVersion(type): void ->
+    version = this.version.get(type)
+    this.version.set(type, version + 1)
+
+  // Inform nodes in this environment that data has changed.
+  _handleDiff(diff): void ->
+    obnoxious("diff", diff[0]?.typeId, diff[1]?.typeId, diff[2]?.typeId, diff[3]?.typeId, diff[4]?.typeId)
+    for elem node in this.nodes:
+      node.environmentDidChange(this, diff)
+
+  // Set the resources in this environment equal to the resources in the list.
+  // Removes all other resources.
+  set(resourceList): void ->
+    diff = [null, null, null, null, null]
+    seen = [null, null, null, null, null]
+    next = [[], [], [], [], []]
+
+    // Collate by type
+    for elem resource in resourceList:
+      ty = this.controller.types.typeOf(resource)
+      if not ty:
+        throw new Error("Resource of invalid type " + resource)
+
+      seen[ty.index] = ty
+      diff[ty.index] = ty
+      next[ty.index].push(resource)
+
+    // Perform updates for types seen
+    for idx i, elem ty in seen:
+      if ty:
+        // For those types seen, store the new resources
+        this._bumpVersion(ty)
+        this._setResources(ty, next[i])
+      else:
+        // For those types not seen, if they are populated, create a diff entry
+        // indicating that they will be emptied
+        unseenType= this.controller.types.forIndex(i)
+        if this.hasResourcesOfType(unseenType):
+          this._bumpVersion(unseenType)
+          this._clearResources(unseenType)
+          diff[i] = unseenType
+
+    // Broadcast differences to interested nodes
+    this._handleDiff(diff)
+
+  update(resourceList, deletions): void ->
+    diff = [null, null, null, null, null]
+
+    // Modifications
+    for elem resource in resourceList:
+      ty = this.controller.types.typeOf(resource)
+      if not ty: throw new Error("Resource of invalid type " + resource)
+
+      diff[ty.index] = ty
+
+      // Store resource
+      let data = this.data.get(ty)
+      if not data:
+        now data = {}
+        this.data.set(ty, data)
+      data[ty.getResourceName(resource)] = resource
+
+    // Deletions
+    for elem [ty, name] in (deletions or []):
+      diff[ty.index] = ty
+      data = this.data.get(ty)
+      if data: delete data[name]
+
+    // Bump versions for types with diffs
+    for elem ty in diff: if ty: this._bumpVersion(ty)
+
+    this._handleDiff(diff)

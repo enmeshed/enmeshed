@@ -1,0 +1,49 @@
+import { StreamHandler } from '@enmeshed/grpc'
+
+debug = require('debug')('node-control-plane')
+
+// An ADS Streaming API connection
+export class Connection extends StreamHandler:
+  // The Node on the other side of this connection
+  peer = null
+
+  constructor(stream, server) ->
+    super(stream, server)
+    this.controller = server.controller
+
+  didDisconnect(): void ->
+    if this.peer:
+      debug("Node will disconnect: ", this.peer.key)
+      this.peer.didDisconnect()
+      this.controller.nodeDidDisconnect(this.peer)
+      this.peer = null
+
+  start(): void ->
+    debug("gRPC connection opened")
+    return
+
+  error(err, isInternal): void ->
+    debug("Connection encountered error", err)
+    this.didDisconnect()
+
+  data(packet): void ->
+    // If we don't know which Envoy instance we're talking to, find out using
+    // the Node protobuf info
+    if not this.peer:
+      debug("New node connected, identifying", packet.node)
+      node = this.controller.identifyNode(packet.node)
+      if not node:
+        debug("Node was unidentified, dropping")
+        this.end(new Error("unrecognized node"))
+
+      debug("Opened stream with peer id: ", node.key)
+      this.peer = node
+      node.didConnect(this)
+      this.controller.nodeDidConnect(this.peer)
+
+    this.peer.discoveryRequest(packet)
+
+  hangup() ->
+    debug("Envoy peer hung up: ", this.peer.key)
+    this.end()
+    this.didDisconnect()

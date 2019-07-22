@@ -1,0 +1,90 @@
+import { ResourceTypeData } from './Resource'
+
+incoming = require('debug')('node-control-plane:traffic:incoming')
+outgoing = require('debug')('node-control-plane:traffic:outgoing')
+
+// Node represents a remote Envoy node that is connected to this control
+// plane.
+export class Node:
+  controller = null
+  environment = null
+  key = null
+  // Connection between Envoy and this node
+  connection = null
+  // Versions most recently acked
+  acked: ResourceTypeData = new ResourceTypeData()
+  // Names of each kind of resource requested by the client
+  requested: ResourceTypeData = new ResourceTypeData()
+
+  constructor(key) ->
+    this.key = key
+
+  // Clear stateful data related to this connection
+  clearConnectionData(): void ->
+    this.acked = new ResourceTypeData()
+    this.requested = new ResourceTypeData()
+
+  // Node connected to control plane.
+  didConnect(connection): void ->
+    if this.connection:
+      throw new Error("Node connected twice")
+
+    if not this.environment:
+      throw new Error("Node must be assigned an environment by Controller.identifyNode")
+
+    this.connection = connection
+    this.controller = connection.controller
+    this.environment.nodeWillJoin(this)
+
+  // Node disconnected from control plane.
+  didDisconnect(): void ->
+    this.connection = null
+    this.clearConnectionData()
+    this.environment.nodeDidLeave(this)
+    this.environment = null
+
+  // Environment data changed
+  environmentDidChange(environment, diffs) ->
+    // Issue a discovery response for each type of data that was previously
+    // requested by the Envoy server.
+    for elem ty in diffs:
+      if ty and this.requested.get(ty):
+        this.sendDiscoveryResponse(ty)
+
+  sendDiscoveryResponse(type) ->
+    names = this.requested.get(type)
+    [ version, resources ] = this.environment.getMatchingResources(type, names)
+    outgoing('-> node', this.key, ':', type.typeId, version, resources)
+
+    // Convert resources to an array of google.protobuf.Any's
+    anyResources = [...for val e in resources: [type.toAny(e)]]
+    this.connection?.write({
+      version_info: version.toString()
+      type_url: type.typeId
+      resources: anyResources
+    })
+
+  // Receive a discovery request from Envoy
+  discoveryRequest(packet): void ->
+    if packet.type_url:
+      type = this.controller.types.forTypeUrl(packet.type_url)
+      this.discoveryRequestForType(type, packet)
+      return
+
+  discoveryRequestForType(type, packet): void ->
+    // request is a NACK
+    if packet.error_detail:
+      incoming(`<- node ${this.key}: nack ${type.typeId}`, packet.error_detail)
+      // XXX: nack handling?
+      return
+
+    // request is an ACK
+    if (not packet.error_detail) and packet.version_info:
+      incoming(`<- node ${this.key}: ack ${type.typeId} v${packet.version_info}`)
+      this.acked.set(type, packet.version_info)
+      return
+
+    // Specific resource request
+    incoming(`<- node ${this.key}: discovery request`, packet)
+    this.requested.set(type, packet.resource_names)
+    this.sendDiscoveryResponse(type)

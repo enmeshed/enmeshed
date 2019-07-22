@@ -1,0 +1,32 @@
+import { DataSource } from './DataSource'
+
+export class ReflectionDomain:
+  service = {}
+  provider = {}
+  environment = {}
+  dataSource = null
+
+  constructor(impl: DataSource) ->
+    this.dataSource = impl
+    this.dataSource.start(this)
+
+  _setEntityTemplate(type, name, template): void ->
+    { environment } = this
+    entities = this[type]
+    entities[name] = template
+    for val env in environment:
+      env._templateDidChange(type, name, template)
+
+  // Create an environment
+  _createEnvironment(env) ->
+    { environment } = this
+    { name } = env
+
+    if environment[name]:
+      throw new Error(`duplicate environment name ${name}`)
+
+    environment[name] = env
+
+  getEnvironment(name) -> this.environment[name]
+  _getServiceTemplate(name) -> this.service[name]
+  _getProviderTemplate(name) -> this.provider[name]

@@ -1,0 +1,85 @@
+import { classifyMethod } from './util'
+import { handleStream, StreamHandler } from './StreamHandler'
+
+// Based on grpc-mod
+wrapUnaryMethod(method, context) ->
+  grpcUnary(request, metadata) ->
+    if metadata:
+      new Promise! (resolve, reject) ->
+        method.call(context, request, metadata, (err, response) -> if err: reject(err) else: resolve(response))
+    else:
+      new Promise! (resolve, reject) ->
+        method.call(context, request, (err, response) -> if err: reject(err) else: resolve(response))
+
+// Streams are already async iterable.
+wrapResponseStreamMethod(method, context) -> method.bind(context)
+
+// When calling a method with a request stream, the user provides an async
+// generator that produces the stream of values.
+wrapRequestStreamMethod(method, context) ->
+  grpcRequestStream(asyncGenerator, metadata) ->
+    // Promisify the grpc callback
+    new Promise! (resolve, reject): void => {
+      let stream = null
+
+      // Dump from the async generator to the stream
+      writer = (): void -/>
+        try:
+          for await (packet of asyncGenerator(stream)): stream.write(packet)
+        catch err:
+          // If the async generator errors, cancel the call to the
+          // server.
+          stream.cancel()
+          // XXX: custom error type, "ClientError"?
+          reject(err)
+        finally:
+          stream.end()
+
+      now stream = if metadata:
+        method.call(context, metadata, (err, response) -> if err: reject(err) else: resolve(response))
+      else:
+        method.call(context, (err, response) -> if err: reject(err) else: resolve(response))
+
+      writer()
+    } // new Promise!
+
+// For the time being, just use the streaming API.
+// There is probably some solution involving async generators but in this case
+// it is going to require a bunch of combinators and be really slow.
+wrapBidiStreamMethod(method, context) ->
+  grpcBidiStream(handler): StreamHandler ->
+    stream = method.call(context)
+    handler.stream = stream
+    // XXX: client-side handlers need different error handling
+    handler._isClient = true
+    handleStream(stream, handler)
+    handler
+
+wrapMethod(methodName, method, context) ->
+  classification = classifyMethod(method)
+
+  match classification:
+    | 'unary':
+      wrapUnaryMethod(method, context)
+    | 'requestStream':
+      wrapRequestStreamMethod(method, context)
+    | 'responseStream':
+      wrapResponseStreamMethod(method, context)
+    | 'bidirectionalStream':
+      wrapBidiStreamMethod(method, context)
+    | else:
+      // XXX: throw?
+      method
+
+// Allow clients to be enhanced
+export class ClientEnhancer:
+  constructor(grpcClient) ->
+    this.grpcClient = grpcClient
+    this._wrapMethods()
+
+  _wrapMethods(): void ->
+    { grpcClient } = this
+
+    for key k, val method in Object.getPrototypeOf(grpcClient):
+      if typeof(method) == 'function':
+        this[k] = wrapMethod(k, method, grpcClient)

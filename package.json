@@ -1,0 +1,65 @@
+{
+  "name": "@enmeshed/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Monorepo for enmeshed projects.",
+  "scripts": {
+    "clean": "rimraf lib coverage .nyc_output",
+    "clean:modules": "rimraf node_modules",
+    "superclean": "run-s clean clean:modules",
+    "build": "run-s build:rollup",
+    "build:coverage": "run-s build:rollup:coverage",
+    "build:rollup": "rollup -c",
+    "build:plain": "babel --source-maps -x \".js\",\".lsc\" src --out-dir lib",
+    "build:rollup:coverage": "cross-env COVERAGE=true rollup -c",
+    "test": "run-s clean build test:only",
+    "test:only": "jest",
+    "test:only:coverage": "jest --coverage",
+    "test:debug": "node --inspect-brk $(npm bin)/jest -i",
+    "coverage": "run-s clean build:coverage test:only:coverage",
+    "lint": "eslint --ext .js,.lsc src",
+    "lint:fix": "eslint --fix --ext .js,.lsc src"
+  },
+  "dependencies": {
+    "lerna": "^3.15.0"
+  },
+  "devDependencies": {
+    "@lightscript/babel-preset": "4.0.0-alpha.25",
+    "@lightscript/eslint-plugin": "^4.0.0-alpha.25",
+    "@babel/preset-env": "^7.5.4",
+    "@babel/cli": "^7.5.0",
+    "@babel/core": "^7.5.4",
+    "babel-jest": "^24.8.0",
+    "babel-plugin-istanbul": "^5.1.4",
+    "cross-env": "^5.2.0",
+    "eslint": "^5.16.0",
+    "jest": "^24.8.0",
+    "rimraf": "^2.6.3",
+    "rollup": "^1.16.7",
+    "rollup-plugin-babel": "^4.3.3",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "npm-run-all": "^4.1.5"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "lsc"
+    ],
+    "transform": {
+      "\\.lsc$": "<rootDir>/node_modules/babel-jest"
+    },
+    "testRegex": "(\\.|/)test\\.lsc$",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/lib/"
+    ]
+  },
+  "workspaces": {
+    "packages": [
+      "grpc",
+      "node-control-plane"
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+import path from 'path'
+import { Protocols, ServerEnhancer } from '@enmeshed/grpc'
+import { ResourceTypes } from './Resource'
+import { Environment } from './Environment'
+import { Connection } from './Connection'
+
+grpc = require('@grpc/grpc-js')
+
+debug = require('debug')('node-control-plane')
+
+PROTO_PATH = path.resolve(__dirname, '..', 'proto')
+GOOG_PROTO_PATH = require.resolve('protobufjs')
+
+export class Controller:
+  constructor(opts) ->
+    this.Connection = Connection
+    this.Environment = opts?.Environment or Environment
+    this.proto = new Protocols()
+    this._requireProtocols()
+    this.types = new ResourceTypes(this)
+    this.server = new ServerEnhancer(new grpc.Server())
+    this.server.controller = this
+    this.server.addService(
+      this.proto.service("envoy.service.discovery.v2.AggregatedDiscoveryService")
+      { StreamAggregatedResources: this.Connection }
+    )
+
+  // Require envoy protocols
+  _requireProtocols(): void ->
+    { proto } = this
+    proto.addProtoPath(PROTO_PATH)
+    proto.addProtoPath(GOOG_PROTO_PATH)
+    proto.require('envoy/api/v2/rds')
+    proto.require('envoy/api/v2/cds')
+    proto.require('envoy/api/v2/eds')
+    proto.require('envoy/api/v2/lds')
+    proto.require('envoy/service/discovery/v2/ads')
+    proto.require('envoy/service/discovery/v2/sds')
+    proto.load()
+
+    this.Any = proto.type("google.protobuf.Any")
+    this.typeProtocols = [
+      proto.type("envoy.api.v2.ClusterLoadAssignment")
+      proto.type("envoy.api.v2.Cluster")
+      proto.type("envoy.api.v2.RouteConfiguration")
+      proto.type("envoy.api.v2.Listener")
+      proto.type("envoy.api.v2.Secret")
+    ]
+
+  nodeDidConnect(node): void -> return
+  nodeDidDisconnect(node): void -> return
+
+  createEnvironment(id) -> new this.Environment(this, id)
+
+  serve(port, creds): void -/>
+    <- this.server.bind(port, creds or grpc.ServerCredentials.createInsecure())
+    this.server.start()
+    debug(`gRPC server listening on ${port}`)
+
+  stop() ->
+    this.server.shutdown()

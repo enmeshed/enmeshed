@@ -1,0 +1,47 @@
+export class Environment:
+  service = {}
+  provider = {}
+  providerMap = {}
+  metadata = {}
+
+  getService(name) -> if name: this.service[name] else: null
+  getProvider(name) -> if name: this.provider[name] else: null
+  getProviderNameForServiceName(name) -> if name: this.providerMap[name] else: null
+  getServiceNamesForProviderName(name) ->
+    if not name: return []
+    [...for key serviceName, val providerName in this.providerMap:
+      if providerName == name: [serviceName]
+    ]
+  getServiceListForServiceNames(names: Array<string>): Array<string> ->
+    [...for elem name in names:
+      if name and this.service[name]: [this.service[name]]
+    ]
+  getServiceSetForServiceNames(names: Array<string>) ->
+    set = new Set()
+    for elem name in names:
+      if name and this.service[name]:
+        set.add(this.service[name])
+    set
+
+  // Events
+  serviceWasChanged(svc): void -> return
+  providerWasChanged(prov): void -> return
+
+  _addService(svc): void ->
+    { service } = this
+    service[svc.name] = svc
+    this._updatedService(svc)
+
+  _updatedService(svc): void ->
+    prov = this.getProvider(this.getProviderNameForServiceName(svc.name))
+    prov?._findServices(this)
+    svc._findProvider(this)
+
+  _addProvider(prov): void ->
+    { provider } = this
+    provider[prov.name] = prov
+    this._updatedProvider(prov)
+
+  _updatedProvider(prov): void ->
+    prov._findServices(this)
+    prov.getServiceSet.forEach(x => x._findProvider(this))

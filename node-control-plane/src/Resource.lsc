@@ -1,0 +1,72 @@
+export class ResourceType:
+  index: number = 0
+  typeId: string = ""
+  shortName: string = ""
+  messageClass = null
+
+  constructor(Any, index, typeId, shortName, messageClass) ->
+    Object.assign(this, { index, typeId, shortName, messageClass, Any })
+
+  getResourceName(resource) -> resource.name
+
+  // Convert an object of this resource type to a google.protobuf.Any
+  toAny(obj) ->
+    this.Any.create({
+      type_url: this.typeId
+      value: this.messageClass.encode(obj).finish()
+    })
+
+  // Convert an object to a protobuf matching this resource
+  fromObject(obj) ->
+    this.messageClass.fromObject(obj)
+
+  checkResource(obj) ->
+    obj instanceof this.messageClass.ctor
+
+export class ResourceTypes:
+  _byFqtn = {}
+  _byUrl = {}
+  _byIndex = []
+
+  constructor(controller) ->
+    this.controller = controller
+    this._loadTypes()
+
+  _loadType(idx, fqtn) ->
+    { proto } = this.controller
+    path = fqtn.split('.')
+    shortName = path[path.length - 1]
+    url = `type.googleapis.com/${fqtn}`
+    ty = new ResourceType(this.controller.Any, idx, url, shortName, proto.type(fqtn))
+    this[shortName] = ty
+    this._byIndex[idx] = ty
+    this._byFqtn[fqtn] = ty
+    this._byUrl[url] = ty
+    ty
+
+  _loadTypes() ->
+    ty = this._loadType(0, "envoy.api.v2.ClusterLoadAssignment")
+    ty.getName(resource) -> resource.cluster_name
+    this._loadType(1, "envoy.api.v2.Cluster")
+    this._loadType(2, "envoy.api.v2.RouteConfiguration")
+    this._loadType(3, "envoy.api.v2.Listener")
+    this._loadType(4, "envoy.api.v2.Secret")
+
+  forTypeId(id) -> this._byFqtn[id]
+  forTypeUrl(url) -> this._byUrl[url]
+  forIndex(idx) -> this._byIndex[idx]
+
+  typeOf(resource) ->
+    for elem rType in this._byIndex:
+      if rType.checkResource(resource): return rType
+    null
+
+// A container storing an element of data for each resource type.
+export class ResourceTypeData:
+  values = [null, null, null, null, null]
+
+  get(type) -> this.values[type.index]
+  set(type, value): void -> this.values[type.index] = value
+  reset(): void ->
+    this.values = [null, null, null, null, null]
+  _set(values): void -> this.values = values

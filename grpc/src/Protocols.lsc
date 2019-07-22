@@ -1,0 +1,65 @@
+// Create a client for a grpc service bouncing off an Envoy sidecar on port 3000
+import path from 'path'
+import fs from 'fs'
+grpc = require('@grpc/grpc-js')
+import { loadSync } from './grpcProtoLoader'
+Protobuf = require("protobufjs")
+
+at(obj, path) ->
+  let ret = obj
+  for elem e in path:
+    now ret = ret[e]
+  ret
+
+export class Protocols:
+  _loaded = false
+  _root = null
+  _includeDirs = []
+  _files = []
+  _pkgs = null
+  loadOptions = {
+    keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
+  }
+
+  setProtoPath(...includeDirs) ->
+    this._includeDirs = includeDirs
+    this
+
+  addProtoPath(dir) ->
+    this._includeDirs.push(dir)
+    this
+
+  // Create a gRPC client for the given named service
+  client(protoName, port, credentials, opts) ->
+    pth = protoName.split('.')
+    client = at(this._pkgs, pth)
+    new client(port, credentials, opts)
+
+  // Retrieve a gRPC service def for the given named service
+  service(protoName) ->
+    pth = protoName.split('.')
+    client = at(this._pkgs, pth)
+    client.service
+
+  type(typeName) ->
+    this._root.lookupType(typeName)
+
+  require(protoFile): void ->
+    if this._loaded:
+      throw new Error(`Protocols.require: cannot call require() after protocols are already loaded.`)
+    fileName = `${protoFile}.proto`
+    // Resolve the proto package in the include dirs
+    for elem dir in this._includeDirs:
+      target = path.resolve(dir, fileName)
+      if fs.existsSync(target):
+        this._files.push(target)
+        return // first match wins
+    // File not found
+    throw new Error(`Protocols.require: could not find protocol file matching '${fileName}' in include path.`)
+
+  load(): void ->
+    if this._loaded: return
+    this._root = new Protobuf.Root()
+    opts = Object.assign({}, this.loadOptions, { includeDirs: this._includeDirs, root: this._root })
+    pkgDef = loadSync(this._files, opts)
+    this._pkgs = grpc.loadPackageDefinition(pkgDef)

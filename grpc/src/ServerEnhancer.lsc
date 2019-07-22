@@ -1,0 +1,95 @@
+import { classifyMethod } from './util'
+import { handleStream } from './StreamHandler'
+
+class UnaryResponse {}
+
+marshalUnary(promisedUnary, callback, marshalErrorContext) ->
+  promisedUnary
+    .then! (result) ->
+      if typeof(result) != 'object':
+        throw new Error("invalid response")
+      elif result instanceof UnaryResponse:
+        callback(null, result.value, result.trailer, result.flags)
+      else:
+        callback(null, result)
+    .catch! (err) ->
+      callback(marshalErrorContext.marshalError(err))
+
+// Marshal a stream of response objects produced by an async generator function.
+marshalStream(asyncGenerator, stream, marshalErrorContext, arg1, arg2) -/>
+  try:
+    asyncGeneratorInstance = asyncGenerator(arg1, arg2)
+    for await (packet of asyncGeneratorInstance): stream.write(packet)
+    stream.end()
+  catch err:
+    // gRPC automatically destroys the stream on error event.
+    stream.emit('error', marshalErrorContext.marshalError(err))
+
+// XXX: metadata api
+export class ServerEnhancer:
+  constructor(grpcServer) ->
+    this.grpcServer = grpcServer
+
+  // Promisified bindAsync
+  bind(port, credentials): Promise<bool> ->
+    server = this.grpcServer
+    new Promise! (resolve, reject) ->
+      server.bindAsync(port, credentials, (err) ->
+        if err:
+          reject(err)
+        else:
+          resolve(true)
+      )
+
+  start() ->
+    this.grpcServer.start()
+
+  // Promisified tryShutdown
+  shutdown(): Promise<bool> ->
+    server = this.grpcServer
+    new Promise! (resolve, reject) ->
+      server.tryShutdown! (err) -> if err: reject(err) else: resolve(true)
+
+  // Override in a subclass to control how JS errors are marshalled into
+  // gRPC errors and returned to the client.
+  marshalError(err) -> err
+
+  _wrapUnary(asyncHandler) ->
+    unaryAsyncHandler(call, callback): void =>
+      marshalUnary(asyncHandler(call.request, call), callback, this)
+
+  _wrapRequestStream(asyncHandler) ->
+    requestStreamAsyncHandler(stream, callback): void =>
+      // In Node 10, stream is an async iterable which is how request streams
+      // should be processed.
+      marshalUnary(asyncHandler(stream), callback, this)
+
+  _wrapResponseStream(asyncGenerator) ->
+    responseStreamAsyncHandler(stream): void =>
+      marshalStream(asyncGenerator, stream, this, stream.request, stream)
+
+  _wrapBidiStream(handlerClass) ->
+    marshalContext = this
+    bidiStreamAsyncHandler(stream): void ->
+      handler = new handlerClass(stream, marshalContext)
+      handler.marshalError = (err) -> marshalContext.marshalError(err)
+      handleStream(stream, handler)
+
+  addService(serviceDef, bindings): void ->
+    // Transform bindings
+    nextBindings = {...for key name, val handler in bindings:
+      // Get protobuf method definition
+      methodDef = serviceDef[name]
+      if not methodDef:
+        throw new Error(`ServerEnhancer.addService: service has no method named ${name}`)
+
+      // Wrap async handlers
+      {[name]: match classifyMethod(methodDef):
+        | 'unary': this._wrapUnary(handler)
+        | 'requestStream': this._wrapRequestStream(handler)
+        | 'responseStream': this._wrapResponseStream(handler)
+        | 'bidirectionalStream': this._wrapBidiStream(handler)
+        | else: throw new Error("invalid method definition " + name)
+      }
+    }
+    this.grpcServer.addService(serviceDef, nextBindings)

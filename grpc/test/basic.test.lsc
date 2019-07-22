@@ -1,0 +1,149 @@
+import { Protocols, ServerEnhancer, ClientEnhancer, StreamHandler } from '..'
+grpc = require('@grpc/grpc-js')
+
+let protos = null
+let server = null
+let client = null
+
+unary(req) -/>
+  console.log("server serving TestService.unary", req)
+  if req.message == 'fail':
+    throw new Error("failed call")
+  else:
+    { message: 'unary reply: ' + req.message}
+
+clientStream(reqStream) -/>
+  let str = ''
+  for await (buf of reqStream):
+    console.log("server serving TestService.clientStream got:" + buf.message)
+    msg = buf.message
+    if msg == 'fail':
+      throw new Error('failed call')
+    now str += buf.message
+  console.log("clientStream for-await loop exited")
+  { message: 'stream concatenated: ' + str }
+
+serverStream(req) -*/>
+  yield { message: 'server stream echo: ' }
+  if req.message == 'fail':
+    throw new Error("failed call")
+  yield { message: req.message }
+
+class BidiStreamHandler extends StreamHandler:
+  start() ->
+    console.log("BidiStreamHandler: started")
+    this.write({ message: 'welcome' })
+  error(err, isInternal) ->
+    console.error(isInternal, err)
+  data(packet) -/>
+    { message } = packet
+    console.log("BidiStreamHandler data: ", message)
+    if message == 'fail':
+      throw new Error('failed call')
+    else:
+      { message: 'echo: ' + message }
+  hangup() ->
+    console.log("BidiStreamHandler: They hung up")
+    this.end()
+
+// Launch grpc server
+beforeAll! -/>
+  try:
+    now protos = new Protocols()
+    protos.setProtoPath('test')
+    protos.require('test')
+    protos.load()
+
+    now server = new ServerEnhancer(new grpc.Server())
+    server.addService(protos.service("TestService"), {
+      unary
+      clientStream
+      serverStream
+      bidiStream: BidiStreamHandler
+    })
+    <- server.bind('0.0.0.0:31337', grpc.ServerCredentials.createInsecure())
+    server.start()
+    console.log("started grpc server")
+
+    now client = new ClientEnhancer(protos.client('TestService', '127.0.0.1:31337', grpc.credentials.createInsecure()))
+  catch err:
+    console.error(err)
+
+// Close grpc server
+afterAll! ->
+  console.log("stopping grpc server")
+  server.shutdown()
+
+test! "unary", -/>
+  resp <- client.unary({message: 'test message'})
+  expect(resp.message).toBe("unary reply: test message")
+
+test! "unary server error", -/>
+  let err = null
+  try:
+    <- client.unary({message: 'fail'})
+  catch xerr:
+    now err = xerr
+  expect(err.details).toBe('failed call')
+
+test! "clientStream", -/>
+  gen = () -*/>
+    yield { message: "hello " }
+    yield { message: "world" }
+
+  resp <- client.clientStream(gen)
+  expect(resp.message).toBe("stream concatenated: hello world")
+
+test! 'clientStream client error', -/>
+  gen = () -*/>
+    yield { message: "hello" }
+    throw new Error("client error")
+    yield { message: "World" }
+
+  try:
+    resp <- client.clientStream(gen)
+    expect(true).toBe(false)
+  catch err:
+    expect(err.message).toBe("client error")
+
+test! 'clientStream server error', -/>
+  gen = () -*/>
+    yield { message: "hello" }
+    yield { message: "fail" }
+    yield { message: "world" }
+
+  try:
+    resp <- client.clientStream(gen)
+    expect(true).toBe(false)
+  catch err:
+    expect(err.details).toBe("failed call")
+
+test! "serverStream", -/>
+  stream = client.serverStream({ message: "hello world" })
+  let str = ''
+  for await (packet of stream): now str += packet.message
+  expect(str).toBe('server stream echo: hello world')
+
+test! "serverStream error", -/>
+  stream = client.serverStream({ message: "fail" })
+  try:
+    let str = ''
+    for await (packet of stream): now str += packet.message
+    expect(true).toBe(false)
+  catch err:
+    expect(err.details).toBe("failed call")
+
+test! "bidiStream", -/>
+  handler = client.bidiStream(StreamHandler.with({
+    start() ->
+      this.responses = []
+      this.write({ message: 'hello' })
+      this.write({ message: 'world' })
+      this.end()
+
+    data(packet) ->
+      this.responses.push(packet.message)
+  }))
+
+  await handler.closedPromise()
+  expect(handler.responses).toEqual(['welcome', 'echo: hello', 'echo: world'])

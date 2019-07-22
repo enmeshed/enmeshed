@@ -1,0 +1,22 @@
+deferred = require('p-defer')
+
+// Classify a method on a grpc client object
+export classifyMethod(method): string ->
+  { requestStream, responseStream } = method
+
+  if (not requestStream) and (not responseStream):
+    'unary'
+  elif requestStream and (not responseStream):
+    'requestStream'
+  elif (not requestStream) and responseStream:
+    'responseStream'
+  elif requestStream and responseStream:
+    'bidirectionalStream'
+  else:
+    throw new Error('classifyMethod: unrecognized method')
+
+export isThenable(thing): bool ->
+  ty = typeof(thing)
+  thing and (ty == 'object' or ty == 'function') and (typeof(thing.then) == 'function')
+
+export { deferred }

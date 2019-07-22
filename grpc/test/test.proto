@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+service TestService {
+  rpc unary(TestMessage) returns (TestMessage);
+  rpc clientStream(stream TestMessage) returns (TestMessage);
+  rpc serverStream(TestMessage) returns (stream TestMessage);
+  rpc bidiStream(stream TestMessage) returns (stream TestMessage);
+}
+
+message TestMessage {
+  string message = 1;
+}
