@@ -4,36 +4,39 @@ Allows members of a service mesh to obtain information about the available servi
 
 ## Architecture
 
-A `DataSource` collects data from the cluster and saves it to a local, non-persistent store, updating as necessary. There are three types of resources:
+### Domain
 
-### Services
+All activity takes place in a `ReflectionDomain`, which is a root-level container for all of the below-mentioned resources.
 
-Services are named communication endpoints within the cluster.
+#### API
+```js
+import { ReflectionDomain } from '@enmeshed/mesh-reflection'
+```
 
-- A service has a `name` which must be unique amongst all services.
-- A service has a `type` (ex. `gRPC`, `http`, `tcp`, `mysql`) that describes how clients communicate with it.
-- A service has type- and environment-dependent `metadata` (e.g. `secret`, `protocols`, etc) that provide further details on how to speak with the service.
+```js
+new ReflectionDomain(dataSource: DataSource)
+```
+Construct a new `ReflectionDomain` whose contents are provided by the given source.
 
-### Providers
+```js
+environment: Environment = domain.getEnvironment(name: string)
+```
+Retrieves a named `Environment` contained within the domain.
 
-Providers are the physical endpoints that implement services. A provider may represent, say, a Kubernetes service addressed by DNS, or something more complicated like a canary deployment between two other Providers.
+### DataSource
 
-- A provider has a `name` which must be unique amongst all providers.
-- A provider has a `type` (ex. `DNS`, `canary`, etc) that describes how to locate the physical provider within the cluster.
-- A provider has environment-dependent additional `metadata`
+The domain has exactly one `DataSource`. A `DataSource` collects data from the cluster and prepares a collection of `Resource`s that are available for consumers to inspect. The `DataSource` writes these resources into a local, non-persistent store contained within the domain. **Only the `DataSource` is allowed to mutate the store**, so a correctly implemented `DataSource` can guarantee consumers have a consistent view of the resources in the mesh.
 
-### Environments
+### Environment
 
-Environments describe complete collections of services, providers, and the links between them. Given a full description of an environment, any node in the cluster should know how to talk to any service through an appropriate provider, using only the data in the environment.
+Each domain has zero or more `Environment`s identified by string names unique within the domain. An `Environment` is in turn a container for `Resource`s which can be configured differently for each `Environment`. (Examples of `Environment`s might be `staging` and `live`, where services would be configured differently for each.)
 
-- An environment has a `name` unique among environments
-- An environment has additional `metadata`
-- An environment has a list of available Services, along with a hash of environment-specific metadata for each one.
-- An environment has a list of available Providers, along with a hash of environment-specific metadata for each one.
-- An environment has a many-to-one map from Services to Providers, returning exactly one Provider for each available Service.
+The `Environment` also contains a map associating each `Service` with zero or one `Provider`s. This allows consumers to locate and connect to services on the mesh.
 
-## Domains and Change Listening
+Consumers may enumerate and query resources, as well as listen for changes with node `EventEmitter` api. Further details below.
 
-The `Dataource`, along with the `Services`, `Providers`, and `Environments` are grouped under a single root `ReflectionDomain`.
+### Resource
 
-Changes to resources inside the domain are aggregated at the `Environment` level, and can be listened for by implementing a `ReflectionListener` and handing it to `environment.listen`.
+`Resource`s come in two kinds, `Service`s and `Provider`s. Resources are identified by a string name which must be unique across the domain among resources of the same kind. Each `Resource` carries with it an arbitrary JSON metadata payload.
+
+This library is unopinionated about the contents of the payload, but typically a `Service` would contain information about how it is expected to communicate with that service (for example, a service might idenitfy itself as gRPC and provide a list of acceptable protocol buffers) and a `Provider` would contain information about where to find that service (e.g. a cluster DNS address of the gRPC server)
