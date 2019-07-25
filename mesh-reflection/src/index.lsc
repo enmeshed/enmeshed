@@ -1,3 +1,3 @@
-export { Node } from './Node'
-export { Controller } from './Controller'
+export { DataSource, ReflectionDomain } from './ReflectionDomain'
 export { Environment } from './Environment'
+export { Service, Provider } from './Resource'

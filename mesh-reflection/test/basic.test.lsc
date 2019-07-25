@@ -1,0 +1,42 @@
+import { ReflectionDomain } from '..'
+import { TestDataSource, awaitUpdate } from './tools'
+
+test! 'basic', -/>
+  ds = new TestDataSource()
+  dom = new ReflectionDomain(ds)
+
+  ds.injectServiceTemplate("service1", {
+    type: "grpc"
+    protocols: ['mesh.HealthCheck']
+  })
+  ds.injectProviderTemplate("provider1", {
+    type: "mesh"
+    mesh: {
+      type: "cluster-dns"
+      dns: "service1.service.cluster.local"
+    }
+  })
+
+  ds.injectEnvironment("live")
+  ds.injectService("live", "service1")
+  ds.injectProvider("live", "provider1")
+  ds.injectProviderMap("live", {
+    "service1": "provider1"
+  })
+
+  liveEnv = dom.getEnvironment("live")
+  <- awaitUpdate(liveEnv)
+
+  // Assert basic integrity of system resources
+  service1 = liveEnv.getService("service1")
+  provider1 = liveEnv.getProvider("provider1")
+
+  expect(service1.name).toBe("service1")
+  expect(service1.type).toBe("grpc")
+  expect(service1.protocols).toEqual(['mesh.HealthCheck'])
+  service1provider = service1.getProvider()
+  expect(service1.getProvider()).toBe(service1provider)
+  expect(service1provider).toBe(provider1)
+
+  expect(provider1.name).toBe("provider1")
+  expect(provider1.provides(service1)).toBeTruthy()

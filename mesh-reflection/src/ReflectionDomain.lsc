@@ -1,12 +1,25 @@
-import { DataSource } from './DataSource'
+import { Environment } from './Environment'
 
-export class ReflectionDomain:
+EventEmitter = require('events')
+obnoxious = require('debug')('mesh-reflection:obnoxious')
+
+export class DataSource:
+  domain = null
+
+  start(domain): void ->
+    if this.domain:
+      throw new Error("This DataSource is already attached to a ReflectionDomain. Each DataSource instance may only be attached to one Domain.")
+
+    this.domain = domain
+
+export class ReflectionDomain extends EventEmitter:
   service = {}
   provider = {}
   environment = {}
   dataSource = null
 
   constructor(impl: DataSource) ->
+    super()
     this.dataSource = impl
     this.dataSource.start(this)
 
@@ -14,19 +27,19 @@ export class ReflectionDomain:
     { environment } = this
     entities = this[type]
     entities[name] = template
+    obnoxious("setEntityTemplate", type, name, template)
     for val env in environment:
       env._templateDidChange(type, name, template)
 
   // Create an environment
-  _createEnvironment(env) ->
+  _createEnvironment(name, clazz = Environment): Environment ->
     { environment } = this
-    { name } = env
-
     if environment[name]:
       throw new Error(`duplicate environment name ${name}`)
-
+    env = new clazz(name, this)
     environment[name] = env
+    this.emit('newEnvironment', env)
+    env
 
   getEnvironment(name) -> this.environment[name]
-  _getServiceTemplate(name) -> this.service[name]
-  _getProviderTemplate(name) -> this.provider[name]
+  _getTemplate(kind, name) -> this[kind]?[name]

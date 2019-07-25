@@ -1,3 +1,5 @@
+isEqual = require('lodash.isequal')
+
 function eqSet(as, bs) {
     if (as.size !== bs.size) return false
     for (var a of as) if (!bs.has(a)) return false
@@ -12,48 +14,70 @@ class Resource:
     environment: null
     templateData: {}
     localData: {}
-    data: {}
+    data: null
   }
+
+  constructor(name, environment) ->
+    this.name = name
+    this.__meta.environment = environment
+
+    // Get template information from domain
+    template = environment.domain._getTemplate(this.constructor.kind, name)
+    if not template:
+      throw new Error(`Resource of type ${this.constructor.kind} named ${name} was not defined on the containing domain.`)
+    this.__meta.templateData = template
 
   _isDirty(): boolean ->
     this.__meta.changed
 
-  _setData(templateData, localData): boolean ->
-    this.__meta.templateData = (templateData or this.__meta.templateData)
+  _clean(): void -> this.__meta.changed = false
+
+  _dirty(): void ->
+    this.__meta.changed = true
+    this.__meta.environment._deferChanges()
+
+  _setData(localData): void ->
     this.__meta.localData = (localData or this.__meta.localData)
     lastData = this.__meta.data
     this.__meta.data = Object.assign({}, this.__meta.templateData, this.__meta.localData)
+
     if not isEqual(lastData, this.__meta.data):
-      lastName = this.name
+      lastName = this.name // Name is immutable, don't let it change
       Object.assign(this, this.__meta.data)
       this.name = lastName
-      this.__meta.changed = true
-      true
-    else:
-      false
-
+      this._dirty()
 
 export class Service extends Resource:
+  static kind = "service"
   getProvider() -> this.__meta.provider
 
-  _findProvider(): boolean ->
+  _findProvider() ->
     { environment } = this.__meta
     lastProvider = this.__meta.provider
     providerName = environment.getProviderNameForServiceName(this.name)
     this.__meta.provider = environment.getProvider(providerName)
-    if lastProvider != this.__meta.provider:
-      this.__meta.changed = true
-      true
-    else:
-      false
+    if lastProvider != this.__meta.provider: this._dirty()
 
 export class Provider extends Resource:
+  static kind = "provider"
+  constructor(...args) ->
+    super(...args)
+    this.__meta.services = new Set()
+
   getServiceSet(): Set -> this.__meta.services
+  provides(svc: Service): boolean ->
+    this.__meta.services.has(svc)
 
   _findServices(): boolean ->
     { environment } = this.__meta
     lastServices = this.__meta.services
     serviceNames = environment.getServiceNamesForProviderName(this.name)
-    this.services = env.getServicesForServiceNames(serviceNames)
-    if not eqSet(lastServices, this.services):
-      this.environment.providerWasChanged(this)
+    this.__meta.services = environment.getServiceSetForServiceNames(serviceNames)
+    if not eqSet(lastServices, this.__meta.services): this._dirty()
+
+  // When a Provider's data changes, all Services it is providing must
+  // also be considered dirty.
+  _setData(localData): void ->
+    super._setData(localData)
+    if this._isDirty():
+      this.getServiceSet().forEach((svc) -> svc._dirty())

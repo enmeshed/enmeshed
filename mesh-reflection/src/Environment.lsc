@@ -1,11 +1,27 @@
-export class Environment:
+import { Service, Provider } from './Resource'
+
+EventEmitter = require('events')
+obnoxious = require('debug')('mesh-reflection:obnoxious')
+
+export class Environment extends EventEmitter:
+  name = null
+  domain = null
   service = {}
   provider = {}
   providerMap = {}
   metadata = {}
+  _metadataDirty = false
+  _deferredChanges = false
+
+  constructor(name, domain) ->
+    super()
+    this.name = name
+    this.domain = domain
 
   getService(name) -> if name: this.service[name] else: null
+  getServiceNames(): Array<string> -> Object.keys(this.service)
   getProvider(name) -> if name: this.provider[name] else: null
+  getProviderNames(): Array<string> -> Object.keys(this.provider)
   getProviderNameForServiceName(name) -> if name: this.providerMap[name] else: null
   getServiceNamesForProviderName(name) ->
     if not name: return []
@@ -23,25 +39,71 @@ export class Environment:
         set.add(this.service[name])
     set
 
-  // Events
-  serviceWasChanged(svc): void -> return
-  providerWasChanged(prov): void -> return
+  // Add an entity
+  _addEntity(ent, clazz): void ->
+    if not (ent instanceof clazz):
+      throw new Error(`expected entity of type ${clazz.kind}`)
+    {name} = ent
+    if not name:
+      throw new Error(`entities added to an Environment must have a name field`)
+    if this[clazz.kind][name]:
+      throw new Error(`duplicate ${clazz.kind} named ${name}`)
+    this[clazz.kind][name] = ent
+    ent._dirty()
 
-  _addService(svc): void ->
-    { service } = this
-    service[svc.name] = svc
-    this._updatedService(svc)
+  _createService(name, data): void ->
+    svc = new Service(name, this)
+    this._addEntity(svc, Service)
+    svc._setData(data)
+    svc
 
-  _updatedService(svc): void ->
-    prov = this.getProvider(this.getProviderNameForServiceName(svc.name))
-    prov?._findServices(this)
-    svc._findProvider(this)
+  _createProvider(name, data): void ->
+    prov = new Provider(name, this)
+    this._addEntity(prov, Provider)
+    prov._setData(data)
+    prov
 
-  _addProvider(prov): void ->
-    { provider } = this
-    provider[prov.name] = prov
-    this._updatedProvider(prov)
+  _setProviderMap(map): void ->
+    this.providerMap = map or {}
+    for val prov in this.provider: prov._findServices()
+    for val svc in this.service: svc._findProvider()
 
-  _updatedProvider(prov): void ->
-    prov._findServices(this)
-    prov.getServiceSet.forEach(x => x._findProvider(this))
+  // Batch and defer changes until a few ticks have passed.
+  // This helps the cluster settle to a consistent state before notifying
+  // consumers. Note that this is not a guarantee and consumers may still
+  // need to wait for delayed updates before receving a complete state.
+  _deferChanges(): void ->
+    // XXX: use lodash.debounce
+    if not this._deferredChanges:
+      this._deferredChanges = true
+      setTimeout(=> this._processChanges(), 250)
+
+  _processChangesFor(eventQ, entities, singleChangeEvent, bulkChangeEvent): void ->
+    let anyDirty = false
+    for val entity in entities:
+      if entity._isDirty():
+        now anyDirty = true
+        entity._clean()
+        obnoxious("environment", this.name, singleChangeEvent, entity.name)
+        eventQ.push([singleChangeEvent, entity])
+
+    if anyDirty:
+      obnoxious("environment", this.name, bulkChangeEvent)
+      eventQ.push([bulkChangeEvent])
+
+  _processChanges(): void ->
+    this._deferredChanges = false
+    eventQ = []
+    this._processChangesFor(eventQ, this.provider, 'providerChanged', 'providersChanged')
+    this._processChangesFor(eventQ, this.service, 'serviceChanged', 'servicesChanged')
+
+    // Make sure consumers see cluster metadata that is consistent as
+    // possible by flushing all updates at once.
+    for elem event in eventQ:
+      obnoxious("environment", this.name, "emit", event[0], event[1]?.name)
+      this.emit(...event)
+
+    if this._metadataDirty:
+      this._metadataDirty = false
+      obnoxious("environment", this.name, "metadataChanged")
+      this.emit('metadataChanged')

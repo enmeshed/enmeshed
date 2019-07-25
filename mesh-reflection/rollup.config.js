@@ -63,6 +63,5 @@ var configForTarget = (target) => ({
 })
 
 export default [
-  configForTarget('index'),
-  configForTarget('test_server')
+  configForTarget('index')
 ]
