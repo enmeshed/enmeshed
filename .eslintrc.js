@@ -11,5 +11,8 @@ module.exports = {
   "env": {
     "node": true,
     "es6": true
+  },
+  "rules": {
+    "@lightscript/no-implicit-imports": 1
   }
 }
