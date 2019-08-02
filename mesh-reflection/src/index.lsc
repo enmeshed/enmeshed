@@ -1,3 +1,7 @@
 export { DataSource, ReflectionDomain } from './ReflectionDomain'
 export { Environment } from './Environment'
 export { Service, Provider } from './Resource'
+export { InjectableDataSource } from './InjectableDataSource'
+export { awaitUpdate, awaitEnvironment, awaitResource } from './awaitUpdate'
+export { UpdateCollector } from './UpdateCollector'
+export { Node, NodeLocalPort } from './Node'

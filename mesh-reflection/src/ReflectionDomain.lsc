@@ -1,16 +1,22 @@
 import { Environment } from './Environment'
 
+isEqual = require('lodash.isequal')
 EventEmitter = require('events')
+
+debug = require('debug')('mesh-reflection')
 obnoxious = require('debug')('mesh-reflection:obnoxious')
 
 export class DataSource:
   domain = null
 
-  start(domain): void ->
+  start(domain) ->
     if this.domain:
       throw new Error("This DataSource is already attached to a ReflectionDomain. Each DataSource instance may only be attached to one Domain.")
 
     this.domain = domain
+    return
+
+  stop() -> return
 
 export class ReflectionDomain extends EventEmitter:
   service = {}
@@ -18,14 +24,17 @@ export class ReflectionDomain extends EventEmitter:
   environment = {}
   dataSource = null
 
-  constructor(impl: DataSource) ->
-    super()
+  start(impl: DataSource) ->
     this.dataSource = impl
     this.dataSource.start(this)
+
+  stop() ->
+    this.dataSource.stop()
 
   _setEntityTemplate(type, name, template): void ->
     { environment } = this
     entities = this[type]
+    if entities[name] and isEqual(entities[name], template): return
     entities[name] = template
     obnoxious("setEntityTemplate", type, name, template)
     for val env in environment:
@@ -42,4 +51,7 @@ export class ReflectionDomain extends EventEmitter:
     env
 
   getEnvironment(name) -> this.environment[name]
+  _getAnyEnvironment() ->
+    for val env in this.environment: return env
+    null
   _getTemplate(kind, name) -> this[kind]?[name]

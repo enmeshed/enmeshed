@@ -1,0 +1,18 @@
+export class UpdateCollector:
+  providersChanged = {}
+  servicesChanged = {}
+
+  constructor(environment) ->
+    this.environment = environment
+    environment.on('providerChanged', this.pc)
+    environment.on('serviceChanged', this.sc)
+
+  pc(prov) =>
+    this.providersChanged[prov.name] = prov
+
+  sc(sv) =>
+    this.servicesChanged[sv.name] = sv
+
+  done() ->
+    this.environment.off('providerChanged', this.pc)
+    this.environment.off('serviceChanged', this.sc)

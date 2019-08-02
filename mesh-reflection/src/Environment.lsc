@@ -18,6 +18,22 @@ export class Environment extends EventEmitter:
     this.name = name
     this.domain = domain
 
+  getResource(kind, name) ->
+    if not name: return null
+    match kind:
+      | 'service': this.service[name]
+      | 'provider': this.provider[name]
+      | else: null
+
+  getAnyResource(kind) ->
+    source = match kind:
+      | 'service': this.service
+      | 'provider': this.provider
+      | else: null
+    if not source: return null
+    for val v in source: return v
+    null
+
   getService(name) -> if name: this.service[name] else: null
   getServiceNames(): Array<string> -> Object.keys(this.service)
   getProvider(name) -> if name: this.provider[name] else: null
@@ -67,6 +83,12 @@ export class Environment extends EventEmitter:
     this.providerMap = map or {}
     for val prov in this.provider: prov._findServices()
     for val svc in this.service: svc._findProvider()
+
+  // Handle changes in template, which must dirty everything deriving
+  // from that template.
+  _templateDidChange(type, name, template): void ->
+    changedEntity = this[type]?[name]
+    if changedEntity: changedEntity._setTemplate(template)
 
   // Batch and defer changes until a few ticks have passed.
   // This helps the cluster settle to a consistent state before notifying

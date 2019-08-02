@@ -1,0 +1,97 @@
+import { awaitEnvironment, awaitResource } from './awaitUpdate'
+
+debug = require('debug')('mesh-reflection')
+
+// Class representing a runtime node on the mesh.
+//
+// Nodes exist in precisely one environment and receive an immutable
+// environment at construction time.
+//
+// Nodes understand how to provide their local services (if the node has been
+// assigned a provider) as well as how to reach services elsewhere in the mesh.
+//
+// The Node class must be extended by consumers to fit the various types
+// of services on their infrastructure.
+export class Node:
+  // Info corresponding to mesh-reflection data
+  environment = null
+  providerName = null // Am I a named provider?
+  provider = null
+
+  // Node provision interfaces
+  nodeServices = {}
+  nodeClients = {}
+
+  join(domain, environmentName, providerName): void -/>
+    debug('node.join: awaiting environment', environmentName)
+    this.environment <- awaitEnvironment(domain, environmentName, 60000)
+    if providerName:
+      this.providerName = providerName
+      debug('node.join: awaiting provider', providerName)
+      this.provider <- awaitResource(this.environment, 'provider', providerName, 60000)
+    debug('node.join: joined')
+    this._joined()
+
+  // Return the NodeLocalPort object corresponding to the named service
+  getServicePort(serviceName): NodeLocalPort ->
+    extant = this.nodeServices[serviceName]
+    if extant: return extant
+
+    { provider, environment } = this
+    mrSvc = environment.getService(serviceName)
+    if (not provider) or (not provider.provides(mrSvc)):
+      throw new Error(`This Node does not provide ${serviceName}`)
+
+    debug('node.getServicePort: creating port for service', serviceName)
+    providedSvc = this._createServicePort(provider, mrSvc)
+    this.nodeServices[serviceName] = providedSvc
+
+    providedSvc
+
+  // Return an interface that will help this node connect to the
+  // named service.
+  getClientPort(serviceName): NodeLocalPort ->
+    extant = this.nodeClients[serviceName]
+    if extant: return extant
+
+    { environment } = this
+    mrSvc = environment.getService(serviceName)
+    if (not mrSvc):
+      throw new Error(`Cannot find service named ${serviceName}`)
+
+    debug('node.getClientPort: creating port for service', serviceName)
+    cliPort = this._createClientPort(mrSvc)
+    this.nodeClients[serviceName] = cliPort
+    cliPort.start()
+    cliPort
+
+  // Gracefully shutdown all services
+  stop() ->
+    debug('node.stop(): stopping all ports')
+    promises = [
+      ...for val svcPort in this.nodeServices: [svcPort.shutdown()]
+      ...for val svcPort in this.nodeClients: [svcPort.shutdown()]
+    ]
+    Promise.all(promises)
+
+  // Extension API
+  _joined(): void -> return
+  _createServicePort(provider, service): NodeLocalPort -> null
+  _createClientPort(service): NodeLocalPort -> null
+
+// Class representing either a service on this node, or a client mapping
+// this node to another
+export class NodeLocalPort:
+  node = null
+
+  constructor(node) ->
+    this.node = node
+
+  // Attempt startup
+  start(): void -/> return
+
+  // Reconfigure when relevant cluster data changes
+  reconfigure(provider, service): void -> return
+
+  // Attempt graceful shutdown.
+  shutdown(): void -/> return

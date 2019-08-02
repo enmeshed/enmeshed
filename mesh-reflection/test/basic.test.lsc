@@ -1,9 +1,9 @@
-import { ReflectionDomain } from '..'
-import { TestDataSource, awaitUpdate } from './tools'
+import { ReflectionDomain, InjectableDataSource, awaitUpdate } from '..'
 
 test! 'basic', -/>
-  ds = new TestDataSource()
-  dom = new ReflectionDomain(ds)
+  ds = new InjectableDataSource()
+  dom = new ReflectionDomain()
+  dom.start(ds)
 
   ds.injectServiceTemplate("service1", {
     type: "grpc"
@@ -40,3 +40,41 @@ test! 'basic', -/>
 
   expect(provider1.name).toBe("provider1")
   expect(provider1.provides(service1)).toBeTruthy()
+
+test! 'change local resource', -/>
+  // Init
+  ds = new InjectableDataSource()
+  dom = new ReflectionDomain()
+  dom.start(ds)
+  ds.injectServiceTemplate("service1", { config: "stuff" })
+  ds.injectEnvironment("live")
+  ds.injectService("live", "service1")
+  liveEnv = dom.getEnvironment("live")
+
+  // Test
+  <- awaitUpdate(liveEnv)
+  service1 = liveEnv.getService("service1")
+  expect(service1.config).toBe("stuff")
+  ds.updateService(service1, { config: "nonsense" })
+  updated <- awaitUpdate(service1)
+  expect(updated).toBeTruthy()
+  expect(service1.config).toBe("nonsense")
+
+test! 'change resource template', -/>
+  // Init
+  ds = new InjectableDataSource()
+  dom = new ReflectionDomain()
+  dom.start(ds)
+  ds.injectServiceTemplate("service1", { config: "stuff" })
+  ds.injectEnvironment("live")
+  ds.injectService("live", "service1")
+  liveEnv = dom.getEnvironment("live")
+
+  // Test
+  <- awaitUpdate(liveEnv)
+  service1 = liveEnv.getService("service1")
+  expect(service1.config).toBe("stuff")
+  ds.injectServiceTemplate("service1", { config: "nonsense"})
+  updated <- awaitUpdate(service1)
+  expect(updated).toBeTruthy()
+  expect(service1.config).toBe("nonsense")

@@ -1,0 +1,33 @@
+import { DataSource } from './ReflectionDomain'
+import { Service, Provider } from './Resource'
+
+export class InjectableDataSource extends DataSource:
+  start(dom): void ->
+    super.start(dom)
+
+  injectEnvironment(name) ->
+    this.domain._createEnvironment(name)
+
+  injectServiceTemplate(name, tmpl): void ->
+    this.domain._setEntityTemplate('service', name, tmpl)
+
+  injectProviderTemplate(name, tmpl): void ->
+    this.domain._setEntityTemplate('provider', name, tmpl)
+
+  injectService(envName, svcName, data): Service ->
+    env = this.domain.getEnvironment(envName)
+    env._createService(svcName, data)
+
+  updateService(svc, data): void ->
+    svc._setData(data)
+
+  injectProvider(envName, provName, data): Provider ->
+    env = this.domain.getEnvironment(envName)
+    env._createProvider(provName, data)
+
+  updateProvider(prov, data): void ->
+    prov._setData(data)
+
+  injectProviderMap(envName, map): void ->
+    env = this.domain.getEnvironment(envName)
+    env._setProviderMap(map)

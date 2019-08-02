@@ -1,4 +1,5 @@
 isEqual = require('lodash.isequal')
+obnoxious = require('debug')('mesh-reflection:obnoxious')
 
 function eqSet(as, bs) {
     if (as.size !== bs.size) return false
@@ -6,7 +7,7 @@ function eqSet(as, bs) {
     return true
 }
 
-class Resource:
+export class Resource:
   static kind = "resource"
   name = null
   __meta = {
@@ -15,6 +16,7 @@ class Resource:
     templateData: {}
     localData: {}
     data: null
+    dependents: []
   }
 
   constructor(name, environment) ->
@@ -27,6 +29,9 @@ class Resource:
       throw new Error(`Resource of type ${this.constructor.kind} named ${name} was not defined on the containing domain.`)
     this.__meta.templateData = template
 
+  getEnvironment() ->
+    this.__meta.environment
+
   _isDirty(): boolean ->
     this.__meta.changed
 
@@ -34,7 +39,14 @@ class Resource:
 
   _dirty(): void ->
     this.__meta.changed = true
+    for elem dependent in this.__meta.dependents:
+      dependent._dirty()
     this.__meta.environment._deferChanges()
+
+  _setTemplate(template): void ->
+    obnoxious(this.constructor.kind, this.name, "_setTemplate")
+    this.__meta.templateData = template
+    this._setData()
 
   _setData(localData): void ->
     this.__meta.localData = (localData or this.__meta.localData)
@@ -45,6 +57,7 @@ class Resource:
       lastName = this.name // Name is immutable, don't let it change
       Object.assign(this, this.__meta.data)
       this.name = lastName
+      obnoxious(this.constructor.kind, this.name, "_setData: data changed")
       this._dirty()
 
 export class Service extends Resource:
@@ -63,10 +76,23 @@ export class Provider extends Resource:
   constructor(...args) ->
     super(...args)
     this.__meta.services = new Set()
+    this.__meta.ordinalServiceNames = []
 
   getServiceSet(): Set -> this.__meta.services
   provides(svc: Service): boolean ->
+    if not svc: return false
     this.__meta.services.has(svc)
+
+  // It is occasionally useful to have an ordinal sequencing of services
+  // on a provider, for instance when handing out well known ports.
+  // We do it here by just sorting the service names. (Better way?)
+  getServiceOrdinal(svc: Service): number ->
+    services = this.__meta.services
+    seq = []
+    services.forEach(x -> seq.push(x))
+    seq.sort((a, b) -> if a.name > b.name: 1 else: -1)
+    idx = seq.indexOf(svc)
+    if idx > -1: idx else: null
 
   _findServices(): boolean ->
     { environment } = this.__meta

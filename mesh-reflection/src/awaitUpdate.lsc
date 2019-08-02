@@ -1,0 +1,117 @@
+import { Environment } from './Environment'
+import { Resource } from './Resource'
+
+deferred = require('p-defer')
+debug = require('debug')('mesh-reflection')
+obnoxious = require('debug')('mesh-reflection:obnoxious')
+
+awaitEnvironmentUpdate(environment, timeout = 0): Promise<bool> ->
+  debug("awaiting update for environment", environment.name)
+  def = deferred()
+  let timer = null
+
+  listener = (didTimeout) ->
+    obnoxious("awaitEnvironmentUpdate listener", if didTimeout: 'timed out' else: 'fired')
+    if timer: clearTimeout(timer)
+    environment.off('providersChanged', listener)
+    environment.off('servicesChanged', listener)
+    def.resolve(not didTimeout)
+
+  if timeout > 0:
+    now timer = setTimeout(-> listener(true), timeout)
+
+  environment.on('providersChanged', listener)
+  environment.on('servicesChanged', listener)
+
+  def.promise
+
+awaitResourceUpdate(resource, timeout = 0): Promise<bool> ->
+  kind = resource.constructor.kind
+  name = resource.name
+  changeEv = kind + 'Changed'
+  environment = resource.getEnvironment()
+  debug("awaiting update for", kind, name, "in environment", environment.name)
+
+  def = deferred()
+  let timer = null
+
+  listener = (changedResource, didTimeout) ->
+    if (changedResource != resource) and (not didTimeout): return
+    obnoxious("awaitResourceUpdate listener", if didTimeout: 'timed out' else: 'fired')
+    if timer: clearTimeout(timer)
+    environment.off(changeEv, listener)
+    def.resolve(not didTimeout)
+
+  if timeout > 0:
+    now timer = setTimeout(-> listener(null, true), timeout)
+
+  environment.on(changeEv, listener)
+
+  def.promise
+
+// Await a change to an object. If the object is an Environment, waits for
+// any change to the Providers or Services within the environment. If
+// the object is a Provider or Service, waits for a change to that particular
+// resource.
+export awaitUpdate(obj, timeout = 0): Promise<bool> ->
+  if obj instanceof Environment:
+    awaitEnvironmentUpdate(obj, timeout)
+  elif obj instanceof Resource:
+    awaitResourceUpdate(obj, timeout)
+  else:
+    throw new Error("awaitUpdate: invalid first argument, expected an Environment or Resource")
+
+// Await the existence of a named Environment, or any Environment at all if name
+// is not provided.
+export awaitEnvironment(domain, envName, timeout = 0): Promise<Environment> ->
+  obnoxious("awaitEnvironment:", envName or '(any)')
+
+  // Early-out if we already have the environment.
+  current = if envName:
+    domain.getEnvironment(envName)
+  else:
+    domain._getAnyEnvironment()
+  if current:
+    obnoxious("awaitEnvironment: early out for", envName or '(any)')
+    return Promise.resolve(current)
+
+  def = deferred()
+  let timer = null
+
+  listener = (env, didTimeout) ->
+    if (envName and (env?.name != envName)) and (not didTimeout): return
+    obnoxious("awaitEnvironment listener", if didTimeout: 'timed out' else: 'fired')
+    if timer: clearTimeout(timer)
+    domain.off('newEnvironment', listener)
+    if didTimeout:
+      def.reject(new Error(`awaitEnvironment(${envName}) timed out`))
+    else:
+      def.resolve(env)
+
+  if timeout > 0:
+    now timer = setTimeout(-> listener(null, true), timeout)
+
+  domain.on('newEnvironment', listener)
+
+  def.promise
+
+export awaitResource(environment, kind, rsrcName, timeout = 0) -/>
+  obnoxious("awaitResource in", environment.name, ":", kind, rsrcName or "(any)")
+  let remaining = timeout
+
+  while true:
+    rsrc = if rsrcName:
+      environment.getResource(kind, rsrcName)
+    else:
+      environment.getAnyResource(kind)
+    obnoxious("awaitResource in", environment.name, ": found", kind, rsrc.name)
+    if rsrc: return rsrc
+
+    // Wait for a change
+    t0 = Date.now()
+    <- awaitUpdate(environment, remaining)
+    if timeout > 0:
+      dt = Date.now() - t0
+      now remaining -= dt
+      if (remaining <= 10):
+        throw new Error(`awaitResource(${kind},${rsrcName}) timed out`)

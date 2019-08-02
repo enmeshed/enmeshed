@@ -4,7 +4,7 @@
   "license": "MIT",
   "description": "Tools to inspect the state and membership of a service mesh.",
   "main": "lib/index.js",
-  "files": ["lib", "proto"],
+  "files": ["lib"],
   "scripts": {
     "clean": "rimraf lib coverage .nyc_output",
     "clean:modules": "rimraf node_modules",
