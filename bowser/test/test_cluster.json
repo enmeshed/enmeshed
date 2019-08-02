@@ -1,0 +1,27 @@
+{
+  "service": {
+    "service1": {
+      "type": "grpc_mesh",
+      "protocols": ["namespace.Test"]
+    }
+  },
+  "provider": {
+    "provider1": {
+      "type": "mesh_node",
+      "dns": "127.0.0.1"
+    }
+  },
+  "environment": {
+    "live": {
+      "service": {
+        "service1": {}
+      },
+      "provider": {
+        "provider1": {}
+      },
+      "providerMap": {
+        "service1": "provider1"
+      }
+    }
+  }
+}

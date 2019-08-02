@@ -1,0 +1,19 @@
+// Start a long-running bowser process
+import { FileDataSource } from '@enmeshed/mesh-reflection-file-watcher'
+
+import { BowserController } from './BowserController'
+
+debug = require('debug')('bowser')
+
+let controller = null
+
+asyncMain() -/>
+  now controller = new BowserController()
+  ds = new FileDataSource(process.argv[2])
+
+  debug("starting controller")
+  controller.start(ds)
+
+process.on('SIGTERM', -> controller?.stop())
+
+asyncMain()

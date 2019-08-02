@@ -1,0 +1,23 @@
+import { ReflectionDomain, awaitEnvironment, awaitResource } from '@enmeshed/mesh-reflection'
+
+import { EnvoyController } from './envoy/EnvoyController'
+
+export class BowserController:
+  ENVOY_ADS_PORT = 12000
+
+  start(ds) -/>
+    this.domain = new ReflectionDomain()
+    this.domain.start(ds)
+
+    this.envoyController = new EnvoyController({ domain: this.domain })
+
+    // Wait for cluster definition warmup
+    anyEnv <- awaitEnvironment(this.domain)
+    <- awaitResource(anyEnv, 'service')
+
+    // Start Envoy ADS server
+    this.envoyController.serve(`0.0.0.0:${this.ENVOY_ADS_PORT}`)
+
+  stop() -/>
+    this.envoyController.stop()
+    this.domain.stop()

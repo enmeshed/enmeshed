@@ -1,0 +1,29 @@
+import { EnvironmentController } from './Environment'
+
+import { populateIngressResources } from './SidecarIngress'
+import { populateEgressResources } from './SidecarEgress'
+
+export class SidecarEnvironmentController extends EnvironmentController:
+  populate(): void ->
+    { envName, provName, env: envoyEnv } = this
+    { domain, types, INGRESS_PROXY_PORT, EGRESS_PROXY_PORT, HOST_BASE_PORT } = this.envoyController
+
+    resources = []
+
+    env = domain.getEnvironment(envName)
+    if not env:
+      throw new Error(`populateSidecarEnvironment: environment ${envName} not found`)
+
+    prov = env.getProvider(provName)
+    if provName and (not prov):
+      throw new Error(`populateSidecarEnvironment: provider ${provName} not found`)
+
+    // Generate all Envoy resources
+    populateIngressResources(resources, prov, types, INGRESS_PROXY_PORT, HOST_BASE_PORT)
+    populateEgressResources(resources, env, types, INGRESS_PROXY_PORT, EGRESS_PROXY_PORT)
+    envoyEnv.set(resources)
+
+  start(envName, provName) ->
+    this.envName = envName
+    this.provName = provName
+    this.populate()

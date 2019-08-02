@@ -1,0 +1,70 @@
+import { Controller, Node } from '@enmeshed/node-control-plane'
+
+import { IngressEnvironmentController } from './IngressEnvironment'
+import { SidecarEnvironmentController } from './SidecarEnvironment'
+
+debug = require('debug')('bowser:envoy')
+
+export class EnvoyController extends Controller:
+  // Mesh-reflection domain
+  domain = null
+  // One sidecar environment per sidecar
+  sidecarEnvironments = {}
+  // One global ingress environment
+  ingressEnvironment = null
+  // Configs
+  INGRESS_PROXY_PORT = 4000 // Ingress port on sidecars
+  EGRESS_PROXY_PORT = 4001 // Egress port on sidecars
+  HOST_BASE_PORT = 40000 // Base port for service providers
+
+  constructor(opts) ->
+    super(opts)
+    this.domain = opts.domain
+    this.ingressEnvironment = new IngressEnvironmentController(this, this.createEnvironment('ingress'))
+
+  getSidecarEnvironment(envName, provName) ->
+    { sidecarEnvironments } = this
+
+    // Two sidecars in the same environment for the same provider have
+    // the same configuration.
+    envKey = `${envName}_${provName or 'null'}`
+    if sidecarEnvironments[envKey]: return sidecarEnvironments[envKey]
+
+    env = new SidecarEnvironmentController(this, this.createEnvironment(`sidecar_${envKey}`))
+    sidecarEnvironments[envKey] = env
+
+    env.start(envName, provName)
+    env
+
+  identifyNode(nodeInfo) ->
+    hash = `cluster:${nodeInfo.cluster}:id:${nodeInfo.id}`
+    node = new Node(hash)
+
+    // Classify node into environment based on metadata
+    md = if nodeInfo.metadata:
+      // structToJson(nodeInfo.metadata)
+      nodeInfo.metadata // grpc should decode this automatically
+    else:
+      {}
+    debug('new node with metadata', md)
+
+    env = match md.role:
+      | 'sidecar': this.getSidecarEnvironment(md.environment, md.provider)
+      | 'ingress': this.ingressEnvironment
+      | else: null
+
+    if not env: return null
+
+    // env is an EnvironmentController
+    node.environment = env.env
+    node
+
+  nodeDidConnect(node): void -> return
+  nodeDidDisconnect(node): void -> return
+
+  stop() ->
+    super.stop()
+    this.ingressEnvironment?.stop()
+    this.ingressEnvironment = null
+    for val env in this.sidecarEnvironments: env.stop()
+    this.sidecarEnvironments = {}

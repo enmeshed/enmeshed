@@ -1,0 +1,12 @@
+import { Environment } from '@enmeshed/node-control-plane'
+
+export class EnvironmentController:
+  env: Environment = null
+  envoyController = null
+
+  constructor(envoyController, env) ->
+    this.envoyController = envoyController
+    this.env = env
+
+  start() -> return
+  stop() -> return
