@@ -61,9 +61,7 @@
       "grpc",
       "node-control-plane",
       "mesh-reflection",
-      "mesh-reflection-file-watcher",
-      "meshnode",
-      "bowser"
+      "mesh-reflection-file-watcher"
     ]
   }
 }
