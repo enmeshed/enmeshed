@@ -1,0 +1,83 @@
+import { DataSource } from '@enmeshed/mesh-reflection'
+import fs from 'fs'
+
+debug = require('debug')('mesh-reflection-file-watcher')
+
+export class FileWatcher:
+  constructor(filename, callback) ->
+    this.filename = filename
+    this.callback = callback
+
+  start() ->
+    debug('starting watch', this.filename)
+    fs.watchFile(this.filename, this.fileChanged)
+    this.callback() // initial read
+
+  fileChanged(curr, prev) =>
+    if (curr.mtime != prev.mtime):
+      this.callback()
+
+  stop() ->
+    debug('stopping watch', this.filename)
+    fs.unwatchFile(this.filename, this.fileChanged)
+
+  readSync() ->
+    fs.readFileSync(this.filename)
+
+// DataSource that watches a JSON file for changes
+export class FileDataSource extends DataSource:
+  constructor(watchedFilename) ->
+    super()
+    this.fileWatcher = new FileWatcher(watchedFilename, this.triggerRead)
+
+  start(dom): void ->
+    super.start(dom)
+    if this._watching: throw new Error("Cannot start the same FileDataSource twice.")
+    this._watching = true
+    this.fileWatcher.start()
+
+  stop(): void ->
+    this.fileWatcher.stop()
+
+  triggerRead() =>
+    this._hasRead = true
+    debug('reading file', this.watchedFilename)
+    raw = this.fileWatcher.readSync()
+    parsed = JSON.parse(raw)
+    this.defineResources(parsed)
+
+  defineEnvironmentResources(envName, envDef): void ->
+    { domain } = this
+    env = domain.getEnvironment(envName)
+
+    for key k, val data in (envDef.service or {}):
+      let svc = env.getService(k)
+      if svc:
+        svc._setData(data)
+      else:
+        env._createService(k, data)
+
+    for key k, val data in (envDef.provider or {}):
+      let prov = env.getProvider(k)
+      if prov:
+        prov._setData(data)
+      else:
+        env._createProvider(k, data)
+
+    env._setProviderMap(envDef.providerMap)
+
+  defineResources(obj): void ->
+    { domain } = this
+    // Inject templates
+    for key k, val svc in (obj.service or {}):
+      domain._setEntityTemplate('service', k, svc)
+    for key k, val prov in (obj.provider or {}):
+      domain._setEntityTemplate('provider', k, prov)
+
+    // Create missing environments
+    for key k in (obj.environment or {}):
+      if not domain.getEnvironment(k): domain._createEnvironment(k)
+
+    // Define per-environment resources
+    for key k, val envDef in (obj.environment or {}):
+      this.defineEnvironmentResources(k, envDef)

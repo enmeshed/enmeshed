@@ -1,0 +1,28 @@
+import { FileDataSource } from './FileDataSource'
+import { ReflectionDomain, awaitUpdate } from '@enmeshed/mesh-reflection'
+import path from 'path'
+
+logService(name, svc) ->
+  console.log("service", name, ":", svc.__meta.data)
+  console.log("  provided by ->", svc.getProvider()?.name)
+
+logProvider(name, prov) ->
+  console.log("provider", name, ":", prov.__meta.data)
+
+ds = new FileDataSource(path.resolve(__dirname, '../test/test.json'))
+dom = new ReflectionDomain()
+
+watchEnvironment(env) -/>
+  while true:
+    <- awaitUpdate(env)
+    console.log("Environment", env.name, "updated")
+    for elem name in env.getServiceNames():
+      logService(name, env.getService(name))
+    for elem name in env.getProviderNames():
+      logProvider(name, env.getProvider(name))
+
+dom.on('newEnvironment', (env) ->
+  console.log("New environment:", env.name)
+  watchEnvironment(env))
+
+dom.start(ds)

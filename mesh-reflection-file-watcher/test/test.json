@@ -1,0 +1,25 @@
+{
+  "service": {
+    "service1": {
+      "config": "stuff"
+    }
+  },
+  "provider": {
+    "provider1": {
+      "config": "provstuff"
+    }
+  },
+  "environment": {
+    "live": {
+      "service": {
+        "service1": {}
+      },
+      "provider": {
+        "provider1": { "config": "overridden" }
+      },
+      "providerMap": {
+        "service1": "provider1"
+      }
+    }
+  }
+}
