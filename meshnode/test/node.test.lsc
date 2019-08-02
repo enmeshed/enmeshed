@@ -1,0 +1,43 @@
+import path from 'path'
+import { MeshNode } from '..'
+import { FileDataSource } from '@enmeshed/mesh-reflection-file-watcher'
+import { ReflectionDomain, awaitEnvironment } from '@enmeshed/mesh-reflection'
+
+unary(req) -/>
+  console.log("server serving TestService.unary", req)
+  if req.message == 'fail':
+    throw new Error("failed call")
+  else:
+    { message: 'unary reply: ' + req.message}
+
+let dom = null, ds = null
+
+beforeAll! -/>
+  now ds = new FileDataSource(path.resolve(__dirname, './test_env.json'))
+  now dom = new ReflectionDomain()
+  dom.start(ds)
+
+afterAll! -/>
+  dom.stop()
+
+it! 'should work', -/>
+  node = new MeshNode()
+  { protos } = node
+  protos.setProtoPath(path.resolve(__dirname, 'proto'))
+  protos.require('namespace/test')
+
+  <- node.join(dom, 'live', 'provider1')
+
+  svc = node.getServicePort('service1')
+  svc.bind('namespace.Test', { unary })
+  svc.start()
+
+  node.TEST_URL_OVERRIDE = '127.0.0.1:40000'
+
+  cli = node.getClientPort('service1')
+  iface = cli.clientForProtocol('namespace.Test')
+
+  resp <- iface.unary({message: 'test message'})
+  expect(resp.message).toBe('unary reply: test message')
+
+  node.stop()
