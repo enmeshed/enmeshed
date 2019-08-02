@@ -816,27 +816,12 @@
     unique-filename "^1.1.1"
     which "^1.3.1"
 
-"@grpc/grpc-js@0.5.0":
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/@grpc/grpc-js/-/grpc-js-0.5.0.tgz#6456963b8f1687734aa62d413ee4e17af0ff9a03"
-  integrity sha512-8p1hvS/shVHSTB0UFMTM126jNSVhf0HWiFU3LO+D8+jg7jrRBOh9dbfXxasG8p6kM0oR8ELB7bRbmS8yOycxyA==
-  dependencies:
-    semver "^6.0.0"
-
-"@grpc/grpc-js@^0.5.0":
+"@grpc/grpc-js@^0.5.2":
   version "0.5.2"
   resolved "https://registry.yarnpkg.com/@grpc/grpc-js/-/grpc-js-0.5.2.tgz#8e39876033749e1611fe9fa181d9535077805abe"
   integrity sha512-NE1tP/1AF6BqhLdILElnF7aOBfoky+4ZOdZU/0NmKo2d+9F9QD8zGoElpBk/5BfyQZ3u1Zs+wFbDOFpVUzDx1w==
   dependencies:
     semver "^6.0.0"
-
-"@grpc/proto-loader@0.5.1":
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/@grpc/proto-loader/-/proto-loader-0.5.1.tgz#48492b53cdda353110b51a4b02f465974729c76f"
-  integrity sha512-3y0FhacYAwWvyXshH18eDkUI40wT/uGio7MAegzY8lO5+wVsc19+1A7T0pPptae4kl7bdITL+0cHpnAPmryBjQ==
-  dependencies:
-    lodash.camelcase "^4.3.0"
-    protobufjs "^6.8.6"
 
 "@jest/console@^24.7.1":
   version "24.7.1"
@@ -6074,7 +6059,7 @@ proto-list@~1.2.1:
   resolved "https://registry.yarnpkg.com/proto-list/-/proto-list-1.2.4.tgz#212d5bfe1318306a420f6402b8e26ff39647a849"
   integrity sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
 
-protobufjs@^6.8.6, protobufjs@^6.8.8:
+protobufjs@^6.8.8:
   version "6.8.8"
   resolved "https://registry.yarnpkg.com/protobufjs/-/protobufjs-6.8.8.tgz#c8b4f1282fd7a90e6f5b109ed11c84af82908e7c"
   integrity sha512-AAmHtD5pXgZfi7GMpllpO3q1Xw1OYldr+dMUlAnffGTAhqkg72WdmSY71uKBF/JuyiKs8psYbtKrhi0ASCD8qw==
