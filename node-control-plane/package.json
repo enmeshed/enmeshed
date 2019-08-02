@@ -1,13 +1,16 @@
 {
   "name": "@enmeshed/node-control-plane",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
   "description": "Building blocks for an Envoy control-plane backend for node.js, loosely based on Envoy's go-control-plane.",
   "main": "lib/index.js",
-  "files": ["lib", "proto"],
+  "files": [
+    "lib",
+    "proto"
+  ],
   "scripts": {
     "clean": "rimraf lib coverage .nyc_output",
     "clean:modules": "rimraf node_modules",
@@ -26,7 +29,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/grpc": "^0.1.0",
+    "@enmeshed/grpc": "^0.1.1",
     "debug": "^4.1.1"
   },
   "devDependencies": {

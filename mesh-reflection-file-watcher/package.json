@@ -1,13 +1,15 @@
 {
   "name": "@enmeshed/mesh-reflection-file-watcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
   "description": "A DataSource for mesh-reflection that watches a json file for changes.",
   "main": "lib/index.js",
-  "files": ["lib"],
+  "files": [
+    "lib"
+  ],
   "scripts": {
     "clean": "rimraf lib coverage .nyc_output",
     "clean:modules": "rimraf node_modules",
@@ -26,7 +28,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/mesh-reflection": "^0.1.0",
+    "@enmeshed/mesh-reflection": "^0.1.1",
     "debug": "^4.1.1"
   },
   "devDependencies": {
