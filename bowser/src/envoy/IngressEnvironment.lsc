@@ -1,3 +1,32 @@
 import { EnvironmentController } from './Environment'
+import { FileWatcher } from '@enmeshed/mesh-reflection-file-watcher'
 
-export class IngressEnvironmentController extends EnvironmentController {}
+// XXX: Implement at-rest encryption for secrets
+decrypt(x) -> x
+
+export class IngressEnvironmentController extends EnvironmentController:
+  start() ->
+    this.watcher = new FileWatcher(process.argv[3], this.changed)
+    this.watcher.start()
+
+  stop() ->
+    this.watcher.stop()
+
+  changed() =>
+    data = JSON.parse(this.watcher.readSync())
+
+    { types } = this.envoyController
+    { Cluster, RouteConfiguration, Listener, Secret } = types
+
+    rsrc = [
+      ...for elem x in (data.clusters or []):
+        [Cluster.fromObject(x)]
+      ...for elem x in (data.listeners or []):
+        [Listener.fromObject(x)]
+      ...for elem x in (data.routes or []):
+        [RouteConfiguration.fromObject(x)]
+      ...for elem x in (data.secrets or []):
+        [Secret.fromObject(decrypt(x))]
+    ]
+
+    this.env.set(rsrc)

@@ -2,7 +2,7 @@
   "service": {
     "service1": {
       "type": "grpc_mesh",
-      "protocols": ["namespace.Test"]
+      "protocols": ["TestService"]
     }
   },
   "provider": {

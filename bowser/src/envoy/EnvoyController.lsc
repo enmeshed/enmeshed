@@ -21,6 +21,7 @@ export class EnvoyController extends Controller:
     super(opts)
     this.domain = opts.domain
     this.ingressEnvironment = new IngressEnvironmentController(this, this.createEnvironment('ingress'))
+    this.ingressEnvironment.start()
 
   getSidecarEnvironment(envName, provName) ->
     { sidecarEnvironments } = this

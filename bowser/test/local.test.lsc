@@ -1,29 +1,34 @@
 // Test whether we can reach a grpc server through local proxy
-import { Protocols, ServerEnhancer, ClientEnhancer } from '@enmeshed/grpc'
-grpc = require('@grpc/grpc-js')
+import path from 'path'
+import { MeshNode } from '@enmeshed/meshnode'
+import { FileDataSource } from '@enmeshed/mesh-reflection-file-watcher'
 
-unary(req) -/>
-  console.log("server serving TestService.unary", req)
+unary(req, call) -/>
+  console.log("server serving TestService.unary", req, call.metadata)
   if req.message == 'fail':
     throw new Error("failed call")
   else:
     { message: 'unary reply: ' + req.message}
 
 it! 'should work', -/>
-    protos = new Protocols()
-    protos.setProtoPath(__dirname)
-    protos.require('test')
-    protos.load()
+  ds = new FileDataSource(path.resolve(__dirname, './test_cluster.json'))
+  node = new MeshNode()
+  node.setReflectionDataSource(ds)
 
-    server = new ServerEnhancer()
-    server.addService(protos.service("TestService"), {
-      unary
-    })
-    <- server.bind('0.0.0.0:40000')
-    server.start()
+  // Load protobufs
+  node.protos.setProtoPath(__dirname)
+  node.protos.require('test')
 
-    client = new ClientEnhancer(protos.client('TestService', '127.0.0.1:4001/grpc/service1'))
-    resp <- client.unary({message: 'test message'})
-    expect(resp.message).toBe("unary reply: test message")
+  <- node.join('live', 'provider1')
 
-    server.shutdown()
+  svc = node.getServicePort('service1')
+  svc.bind('TestService', { unary })
+  svc.start()
+
+  cli = node.getClientPort('service1')
+  iface = cli.clientForProtocol('TestService')
+
+  resp <- iface.unary({message: 'test message'})
+  expect(resp.message).toBe("unary reply: test message")
+
+  <- node.stop()
