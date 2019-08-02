@@ -1,8 +1,10 @@
 // Create a client for a grpc service bouncing off an Envoy sidecar on port 3000
 import path from 'path'
 import fs from 'fs'
-grpc = require('@grpc/grpc-js')
 import { loadSync } from './grpcProtoLoader'
+import { jsonToStruct, structToJson } from './util'
+
+grpc = require('@grpc/grpc-js')
 Protobuf = require("protobufjs")
 
 at(obj, path) ->
@@ -10,6 +12,43 @@ at(obj, path) ->
   for elem e in path:
     now ret = ret[e]
   ret
+
+// Object with a single key named "fields" which is itself an object will be
+// considered "structish". This is of course not totally correct but is probably
+// as close as can reasonably be achieved.
+isStructish(object) ->
+  if typeof(object) != 'object': return false
+  keys = Object.keys(object)
+  if (keys.length != 1) or (keys[0] != 'fields'): return false
+  true
+
+structWrappers = {
+  fromObject: (object) ->
+    if typeof(object) == 'object' and (not isStructish(object)):
+      this.fromObject(jsonToStruct(object))
+    else:
+      this.fromObject(object)
+
+  toObject: (message, options) ->
+    structToJson(this.toObject(message, options))
+}
+
+// Rewire Google's channel implementation to support URL path prefix.
+// (should it do this by default?)
+class PathAwareChannel extends grpc.Channel:
+  createCall(method, deadline, host, parentCall, propagateFlags) ->
+    if this.target?.pathname:
+      super.createCall(this.target.pathname + method, deadline, host, parentCall, propagateFlags)
+    else:
+      super.createCall(method, deadline, host, parentCall, propagateFlags)
+
+channelFactoryOverride(address, credentials, options) ->
+  // Remove the "channelFactoryOverride" option or grpc will log a warning
+  // to the console
+  nextOptions = Object.assign({}, options)
+  delete nextOptions.channelFactoryOverride
+
+  new PathAwareChannel(address, credentials, nextOptions)
 
 export class Protocols:
   _loaded = false
@@ -21,6 +60,14 @@ export class Protocols:
     keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
   }
 
+  static patchProtobuf() ->
+    // Patch Protobuf.js to handle google.protobuf.Struct data
+    wrappers = Protobuf.wrappers
+    wrappers['.google.protobuf.Struct'] = structWrappers
+
+  constructor() ->
+    this.constructor.patchProtobuf()
+
   setProtoPath(...includeDirs) ->
     this._includeDirs = includeDirs
     this
@@ -31,14 +78,20 @@ export class Protocols:
 
   // Create a gRPC client for the given named service
   client(protoName, port, credentials, opts) ->
+    now opts = Object.assign({}, opts, {channelFactoryOverride})
     pth = protoName.split('.')
     client = at(this._pkgs, pth)
+    if not client:
+      throw new Error(`Protocols.client: no protocol ${protoName} was loaded.`)
+    if not credentials: now credentials = grpc.credentials.createInsecure()
     new client(port, credentials, opts)
 
   // Retrieve a gRPC service def for the given named service
   service(protoName) ->
     pth = protoName.split('.')
     client = at(this._pkgs, pth)
+    if not client:
+      throw new Error(`Protocols.service: no protocol ${protoName} was loaded.`)
     client.service
 
   type(typeName) ->

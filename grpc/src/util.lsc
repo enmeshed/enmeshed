@@ -20,3 +20,52 @@ export isThenable(thing): bool ->
   thing and (ty == 'object' or ty == 'function') and (typeof(thing.then) == 'function')
 
 export { deferred }
+
+// Convert a google protobuf struct to plain JSON
+export structToJson(protoStruct) ->
+  {...for key k, val protoVal in protoStruct.fields:
+    {[k]: valToJson(protoVal)}
+  }
+
+listToJson(protoList) ->
+  [...for elem protoVal in protoList.values: [valToJson(protoVal)]]
+
+valToJson(protoVal) ->
+  match protoVal.kind:
+    | 'nullValue': null
+    | 'numberValue': protoVal.numberValue
+    | 'stringValue': protoVal.stringValue
+    | 'boolValue': protoVal.boolValue
+    | 'structValue': structToJson(protoVal.structValue)
+    | 'listValue': listToJson(protoVal.listValue)
+    | else: undefined
+
+export jsonToStruct(json) ->
+  {
+    fields: {...for key k, val v in json: {[k]: jsonToVal(v)}}
+  }
+
+jsonToList(ary) ->
+  {
+    values: [...for elem v in ary: [jsonToVal(v)]]
+  }
+
+jsonToVal(v) ->
+  match typeof(v):
+    | 'object':
+      if v == null:
+        { kind: 'nullValue', nullValue: 0 }
+      elif Array.isArray(v):
+        { kind: 'listValue', listValue: jsonToList(v) }
+      else:
+        { kind: 'structValue', structValue: jsonToStruct(v) }
+    | 'boolean':
+      { kind: 'boolValue', boolValue: v }
+    | 'number':
+      { kind: 'numberValue', numberValue: v }
+    | 'string':
+      { kind: 'stringValue', stringValue: v }
+    | 'undefined':
+      { kind: 'nullValue', nullValue: 0 }
+    | else:
+      throw new Error("couldn't encode json to protobuf; invalid field type")
