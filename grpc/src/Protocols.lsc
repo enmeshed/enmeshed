@@ -37,7 +37,8 @@ structWrappers = {
 // (should it do this by default?)
 class PathAwareChannel extends grpc.Channel:
   createCall(method, deadline, host, parentCall, propagateFlags) ->
-    if this.target?.pathname:
+    pathname = this.target?.pathname
+    if pathname and (pathname != '/'):
       super.createCall(this.target.pathname + method, deadline, host, parentCall, propagateFlags)
     else:
       super.createCall(method, deadline, host, parentCall, propagateFlags)
