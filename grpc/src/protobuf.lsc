@@ -1,0 +1,37 @@
+import { jsonToStruct, structToJson } from './util'
+
+Protobuf = require("protobufjs")
+
+// Object with a single key named "fields" which is itself an object will be
+// considered "structish". This is of course not totally correct but is probably
+// as close as can reasonably be achieved.
+isStructish(object) ->
+  if typeof(object) != 'object': return false
+  keys = Object.keys(object)
+  if (keys.length != 1) or (keys[0] != 'fields'): return false
+  if typeof(object.fields) != 'object': return false
+  true
+
+structWrappers = {
+  fromObject: (object) ->
+    if typeof(object) == 'object' and (not isStructish(object)):
+      this.fromObject(jsonToStruct(object))
+    else:
+      this.fromObject(object)
+
+  toObject: (message, options) ->
+    // Deep structs will be handled recursively by toObject.
+    structToJson(this.toObject(message, options), false)
+}
+
+// Patch Protobuf to handle google.protobuf.Structs by implicitly converting
+// to/from json
+patchProtobuf(pb) ->
+  wrappers = pb.wrappers
+  wrappers['.google.protobuf.Struct'] = structWrappers
+
+// Global patch
+// XXX: This might explode some third-party stuff, watch very carefully
+patchProtobuf(Protobuf)
+
+export { Protobuf }

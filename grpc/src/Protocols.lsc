@@ -1,11 +1,12 @@
 // Create a client for a grpc service bouncing off an Envoy sidecar on port 3000
 import path from 'path'
 import fs from 'fs'
+import url from 'url'
 import { loadSync } from './grpcProtoLoader'
-import { jsonToStruct, structToJson } from './util'
+import { Protobuf } from './protobuf'
 
 grpc = require('@grpc/grpc-js')
-Protobuf = require("protobufjs")
+
 
 at(obj, path) ->
   let ret = obj
@@ -13,35 +14,18 @@ at(obj, path) ->
     now ret = ret[e]
   ret
 
-// Object with a single key named "fields" which is itself an object will be
-// considered "structish". This is of course not totally correct but is probably
-// as close as can reasonably be achieved.
-isStructish(object) ->
-  if typeof(object) != 'object': return false
-  keys = Object.keys(object)
-  if (keys.length != 1) or (keys[0] != 'fields'): return false
-  true
-
-structWrappers = {
-  fromObject: (object) ->
-    if typeof(object) == 'object' and (not isStructish(object)):
-      this.fromObject(jsonToStruct(object))
-    else:
-      this.fromObject(object)
-
-  toObject: (message, options) ->
-    structToJson(this.toObject(message, options))
-}
 
 // Rewire Google's channel implementation to support URL path prefix.
-// (should it do this by default?)
 class PathAwareChannel extends grpc.Channel:
+  constructor(address, credentials, options) ->
+    super(address, credentials, options)
+    urlx = new url.URL(`http://${address}`)
+    { pathname } = urlx
+    this.prefix = if pathname and (pathname != '/'): pathname else: ''
+
   createCall(method, deadline, host, parentCall, propagateFlags) ->
-    pathname = this.target?.pathname
-    if pathname and (pathname != '/'):
-      super.createCall(this.target.pathname + method, deadline, host, parentCall, propagateFlags)
-    else:
-      super.createCall(method, deadline, host, parentCall, propagateFlags)
+    { prefix } = this
+    super.createCall(prefix + method, deadline, host, parentCall, propagateFlags)
 
 channelFactoryOverride(address, credentials, options) ->
   // Remove the "channelFactoryOverride" option or grpc will log a warning
@@ -60,14 +44,6 @@ export class Protocols:
   loadOptions = {
     keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
   }
-
-  static patchProtobuf() ->
-    // Patch Protobuf.js to handle google.protobuf.Struct data
-    wrappers = Protobuf.wrappers
-    wrappers['.google.protobuf.Struct'] = structWrappers
-
-  constructor() ->
-    this.constructor.patchProtobuf()
 
   setProtoPath(...includeDirs) ->
     this._includeDirs = includeDirs
@@ -102,6 +78,12 @@ export class Protocols:
     if this._loaded:
       throw new Error(`Protocols.require: cannot call require() after protocols are already loaded.`)
     fileName = `${protoFile}.proto`
+
+    // Resolve as a common include
+    if Protobuf.common.get(fileName):
+      this._files.push(fileName)
+      return
+
     // Resolve the proto package in the include dirs
     for elem dir in this._includeDirs:
       target = path.resolve(dir, fileName)
@@ -114,6 +96,9 @@ export class Protocols:
   load(): void ->
     if this._loaded: return
     this._root = new Protobuf.Root()
-    opts = Object.assign({}, this.loadOptions, { includeDirs: this._includeDirs, root: this._root })
-    pkgDef = loadSync(this._files, opts)
-    this._pkgs = grpc.loadPackageDefinition(pkgDef)
+    if this._files.length > 0:
+      opts = Object.assign({}, this.loadOptions, { includeDirs: this._includeDirs, root: this._root })
+      pkgDef = loadSync(this._files, opts)
+      this._pkgs = grpc.loadPackageDefinition(pkgDef)
+    else:
+      this._pkgs = {}
