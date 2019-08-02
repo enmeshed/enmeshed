@@ -32,9 +32,12 @@ export class Connection extends StreamHandler:
     if not this.peer:
       debug("New node connected, identifying", packet.node)
       node = this.controller.identifyNode(packet.node)
+
+      // If we can't identify the node, drop the connection.
       if not node:
         debug("Node was unidentified, dropping")
         this.end(new Error("unrecognized node"))
+        return
 
       debug("Opened stream with peer id: ", node.key)
       this.peer = node
@@ -44,6 +47,9 @@ export class Connection extends StreamHandler:
     this.peer.discoveryRequest(packet)
 
   hangup() ->
-    debug("Envoy peer hung up: ", this.peer.key)
+    if this.peer:
+      debug("Envoy peer hung up: ", this.peer.key)
+    else:
+      debug("Unrecognized peer hung up")
     this.end()
     this.didDisconnect()
