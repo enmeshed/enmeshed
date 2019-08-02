@@ -1,6 +1,9 @@
 import { classifyMethod } from './util'
 import { handleStream } from './StreamHandler'
 
+grpc = require('@grpc/grpc-js')
+
+// XXX: implement and export this!
 class UnaryResponse {}
 
 marshalUnary(promisedUnary, callback, marshalErrorContext) ->
@@ -28,11 +31,18 @@ marshalStream(asyncGenerator, stream, marshalErrorContext, arg1, arg2) -/>
 // XXX: metadata api
 export class ServerEnhancer:
   constructor(grpcServer) ->
+    if not grpcServer:
+      now grpcServer = new grpc.Server()
     this.grpcServer = grpcServer
 
   // Promisified bindAsync
   bind(port, credentials): Promise<bool> ->
     server = this.grpcServer
+
+    // Default to insecure credentials.
+    if not credentials:
+      now credentials = grpc.ServerCredentials.createInsecure()
+
     new Promise! (resolve, reject) ->
       server.bindAsync(port, credentials, (err) ->
         if err:
