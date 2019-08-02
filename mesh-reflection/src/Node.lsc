@@ -1,3 +1,4 @@
+import { ReflectionDomain } from './ReflectionDomain'
 import { awaitEnvironment, awaitResource } from './awaitUpdate'
 
 debug = require('debug')('mesh-reflection')
@@ -14,6 +15,7 @@ debug = require('debug')('mesh-reflection')
 // of services on their infrastructure.
 export class Node:
   // Info corresponding to mesh-reflection data
+  domain = null
   environment = null
   providerName = null // Am I a named provider?
   provider = null
@@ -22,7 +24,14 @@ export class Node:
   nodeServices = {}
   nodeClients = {}
 
-  join(domain, environmentName, providerName): void -/>
+  constructor() ->
+    this.domain = new ReflectionDomain()
+
+  setReflectionDataSource(ds) ->
+    this.domain.start(ds)
+
+  join(environmentName, providerName): void -/>
+    { domain } = this
     debug('node.join: awaiting environment', environmentName)
     this.environment <- awaitEnvironment(domain, environmentName, 60000)
     if providerName:
@@ -67,6 +76,9 @@ export class Node:
 
   // Gracefully shutdown all services
   stop() ->
+    debug('node.stop(): stopping reflection domain')
+    this.domain.stop()
+
     debug('node.stop(): stopping all ports')
     promises = [
       ...for val svcPort in this.nodeServices: [svcPort.shutdown()]
