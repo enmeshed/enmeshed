@@ -1,4 +1,7 @@
 import { ResourceTypeData } from './Resource'
+
+hash = require('object-hash')
+
 debug = require('debug')('node-control-plane:environment')
 obnoxious = require('debug')('node-control-plane:environment:obnoxious')
 
@@ -11,15 +14,11 @@ export class Environment:
   data = new ResourceTypeData()
   // Nodes that are members of this environment
   nodes = []
-  // Version nonce string added to each version when propagating to Envoy
-  versionNonce: string = ""
 
   constructor(controller, id) ->
     this.controller = controller
     this.id = id or ""
-    this.version._set([0,0,0,0,0])
-    // XXX: do something better than a random number
-    this.versionNonce = `${this.id}_${Math.floor(Math.random()*100000)}`
+    this.version._set(['0','0','0','0','0'])
 
   nodeWillJoin(node): void ->
     if this.nodes.find(x -> x == node):
@@ -67,8 +66,8 @@ export class Environment:
     this.data.set(type, null)
 
   _bumpVersion(type): void ->
-    version = this.version.get(type)
-    this.version.set(type, version + 1)
+    data = this.data.get(type)
+    this.version.set(type, hash(data))
 
   // Inform nodes in this environment that data has changed.
   _handleDiff(diff): void ->
@@ -97,15 +96,15 @@ export class Environment:
     for idx i, elem ty in seen:
       if ty:
         // For those types seen, store the new resources
-        this._bumpVersion(ty)
         this._setResources(ty, next[i])
+        this._bumpVersion(ty)
       else:
         // For those types not seen, if they are populated, create a diff entry
         // indicating that they will be emptied
         unseenType= this.controller.types.forIndex(i)
         if this.hasResourcesOfType(unseenType):
-          this._bumpVersion(unseenType)
           this._clearResources(unseenType)
+          this._bumpVersion(unseenType)
           diff[i] = unseenType
 
     // Broadcast differences to interested nodes
