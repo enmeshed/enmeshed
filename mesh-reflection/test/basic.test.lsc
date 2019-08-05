@@ -1,4 +1,6 @@
-import { ReflectionDomain, InjectableDataSource, awaitUpdate } from '..'
+import { ReflectionDomain, InjectableDataSource, awaitUpdate, EnvironmentWatcher } from '..'
+
+deferred = require('p-defer')
 
 test! 'basic', -/>
   ds = new InjectableDataSource()
@@ -78,3 +80,23 @@ test! 'change resource template', -/>
   updated <- awaitUpdate(service1)
   expect(updated).toBeTruthy()
   expect(service1.config).toBe("nonsense")
+
+test! 'env watcher', -/>
+  // Init
+  ds = new InjectableDataSource()
+  dom = new ReflectionDomain()
+  dom.start(ds)
+  def = deferred()
+
+  watcher = new EnvironmentWatcher(dom, "live", (e, c) ->
+    console.log("EnvironmentWatcher found", c)
+    def.resolve(c)
+  )
+  watcher.start()
+
+  ds.injectServiceTemplate("service1", { config: "stuff" })
+  ds.injectEnvironment("live")
+  ds.injectService("live", "service1")
+  rst <- def.promise
+  expect(rst[0].name).toBe('service1')
+  watcher.stop()
