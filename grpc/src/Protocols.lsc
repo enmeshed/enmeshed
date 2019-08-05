@@ -1,39 +1,16 @@
-// Create a client for a grpc service bouncing off an Envoy sidecar on port 3000
 import path from 'path'
 import fs from 'fs'
-import url from 'url'
 import { loadSync } from './grpcProtoLoader'
 import { Protobuf } from './protobuf'
+import { channelFactoryOverride } from './PathAwareChannel'
 
 grpc = require('@grpc/grpc-js')
-
 
 at(obj, path) ->
   let ret = obj
   for elem e in path:
     now ret = ret[e]
   ret
-
-
-// Rewire Google's channel implementation to support URL path prefix.
-class PathAwareChannel extends grpc.Channel:
-  constructor(address, credentials, options) ->
-    super(address, credentials, options)
-    urlx = new url.URL(`http://${address}`)
-    { pathname } = urlx
-    this.prefix = if pathname and (pathname != '/'): pathname else: ''
-
-  createCall(method, deadline, host, parentCall, propagateFlags) ->
-    { prefix } = this
-    super.createCall(prefix + method, deadline, host, parentCall, propagateFlags)
-
-channelFactoryOverride(address, credentials, options) ->
-  // Remove the "channelFactoryOverride" option or grpc will log a warning
-  // to the console
-  nextOptions = Object.assign({}, options)
-  delete nextOptions.channelFactoryOverride
-
-  new PathAwareChannel(address, credentials, nextOptions)
 
 export class Protocols:
   _loaded = false
