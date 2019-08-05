@@ -2,6 +2,7 @@ import { ResourceTypeData } from './Resource'
 
 incoming = require('debug')('node-control-plane:traffic:incoming')
 outgoing = require('debug')('node-control-plane:traffic:outgoing')
+debug = require('debug')('node-control-plane:node')
 
 // Node represents a remote Envoy node that is connected to this control
 // plane.
@@ -13,6 +14,8 @@ export class Node:
   connection = null
   // Versions most recently acked
   acked: ResourceTypeData = new ResourceTypeData()
+  // Versions in flight
+  inFlight: ResourceTypeData = new ResourceTypeData()
   // Names of each kind of resource requested by the client
   requested: ResourceTypeData = new ResourceTypeData()
 
@@ -56,6 +59,9 @@ export class Node:
     [ version, resources ] = this.environment.getMatchingResources(type, names)
     outgoing('-> node', this.key, ':', type.typeId, version, resources)
 
+    // Mark version as in-flight
+    this.inFlight.set(type, version)
+
     // Convert resources to an array of google.protobuf.Any's
     anyResources = [...for val e in resources: [type.toAny(e)]]
     this.connection?.write({
@@ -72,19 +78,47 @@ export class Node:
       return
 
   discoveryRequestForType(type, packet): void ->
+    inFlightVersion = this.inFlight.get(type)
+
     // request is a NACK
     if packet.error_detail:
       incoming(`<- node ${this.key}: nack ${type.typeId}`, packet.error_detail)
-      // XXX: nack handling?
+
+      // Clear in-flight data
+      if packet.version_info and (packet.version_info == inFlightVersion):
+        this.inFlight.set(type, null)
+
+      // XXX: nack handling? Should be exporting an alert to something.
       return
+
+    // Request is either an ACK or a new request. In any case, update the
+    // peer's requested set.
+    this.requested.set(type, packet.resource_names or [])
 
     // request is an ACK
     if (not packet.error_detail) and packet.version_info:
+      envoyVersion = packet.version_info
       incoming(`<- node ${this.key}: ack ${type.typeId} v${packet.version_info}`)
-      this.acked.set(type, packet.version_info)
-      return
+      // Case 1: Receive an ack for something that was in flight, good news everyone
+      if inFlightVersion and inFlightVersion == envoyVersion:
+        debug('node', this.key, ': ack was ok, envoy is synced!')
+        this.inFlight.set(type, null)
+        return
+
+      // Case 2: Receive an ack for something while something else is in flight.
+      // This could be envoy catching up with old data. Ignore.
+      if inFlightVersion and inFlightVersion != envoyVersion:
+        debug('node', this.key, ': ack for a different version, assuming envoy is still catching up')
+        return
+
+      // Case 3: Receive an ack when we don't have anything in flight! This
+      // usually indicates a crash or loss of state. We will just send our
+      // best known data.
+      if (not inFlightVersion):
+        debug('node', this.key, ': ack for something we never sent! Re-sending state.')
+        this.sendDiscoveryResponse(type)
+        return
 
     // Specific resource request
     incoming(`<- node ${this.key}: discovery request`, packet)
-    this.requested.set(type, packet.resource_names)
     this.sendDiscoveryResponse(type)
