@@ -56,6 +56,9 @@ export class Environment:
     data = this.data.get(type)
     if data and Object.keys(data).length > 0: true else: false
 
+  getLatestVersion(type) ->
+    this.version.get(type)
+
   _setResources(type, resourceList): void ->
     nextData = {...for elem resource in resourceList:
       {[type.getResourceName(resource)]: resource}

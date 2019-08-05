@@ -79,6 +79,7 @@ export class Node:
 
   discoveryRequestForType(type, packet): void ->
     inFlightVersion = this.inFlight.get(type)
+    latestVersion = this.environment.getLatestVersion(type)
 
     // request is a NACK
     if packet.error_detail:
@@ -87,6 +88,9 @@ export class Node:
       // Clear in-flight data
       if packet.version_info and (packet.version_info == inFlightVersion):
         this.inFlight.set(type, null)
+
+      // Let user customize nack handling via Controller inheritance.
+      this.controller.nodeDidNack(this, type, packet.version_info, packet.error_detail)
 
       // XXX: nack handling? Should be exporting an alert to something.
       return
@@ -101,7 +105,7 @@ export class Node:
       incoming(`<- node ${this.key}: ack ${type.typeId} v${packet.version_info}`)
       // Case 1: Receive an ack for something that was in flight, good news everyone
       if inFlightVersion and inFlightVersion == envoyVersion:
-        debug('node', this.key, ': ack was ok, envoy is synced!')
+        debug('node', this.key, ': ack was for in-flight version, envoy is synced!')
         this.inFlight.set(type, null)
         return
 
@@ -111,10 +115,16 @@ export class Node:
         debug('node', this.key, ': ack for a different version, assuming envoy is still catching up')
         return
 
-      // Case 3: Receive an ack when we don't have anything in flight! This
-      // usually indicates a crash or loss of state. We will just send our
-      // best known data.
+      // Case 3: Receive an ack when we don't have anything in flight
       if (not inFlightVersion):
+        // Ack for the actual latest version = fine, quit
+        if envoyVersion == latestVersion:
+          debug('node', this.key, ': ack was for the latest version, envoy is synced!')
+          return
+
+        // Ack for a version we don't know about.
+        // usually indicates a crash or loss of state. We will just send our
+        // best known data.
         debug('node', this.key, ': ack for something we never sent! Re-sending state.')
         this.sendDiscoveryResponse(type)
         return

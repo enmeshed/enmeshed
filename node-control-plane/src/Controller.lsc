@@ -47,8 +47,17 @@ export class Controller:
       proto.type("envoy.api.v2.Secret")
     ]
 
+  // Invoked when an envoy node connects.
   nodeDidConnect(node): void -> return
+
+  // Invoked when an envoy node disconnects.
   nodeDidDisconnect(node): void -> return
+
+  // Invoked when an Envoy node sends a NACK.
+  //
+  // The packet can be re-sent in the event of a non-fatal error
+  // by using node.sendDiscoveryResponse(type)
+  nodeDidNack(node, type, version, errorDetail): void -> return
 
   createEnvironment(id) -> new this.Environment(this, id)
 
