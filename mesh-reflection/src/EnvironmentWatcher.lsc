@@ -1,0 +1,62 @@
+import { awaitEnvironment } from './awaitUpdate'
+
+debug = require('debug')('mesh-reflection:environment-watcher')
+
+export class EnvironmentWatcher:
+  entitiesObserved = new Map()
+
+  constructor(domain, envName, callback) ->
+    this.domain = domain
+    this.envName = envName
+    this.callback = callback
+
+  // Override to determine interest in particular entities
+  interestMask(entity): boolean -> true
+
+  start(): void ->
+    this.findEnvLoop()
+
+  stop(): void ->
+    if this.env:
+      this.env.off('providerChanged', this.changed)
+      this.env.off('serviceChanged', this.changed)
+
+  findEnvLoop() -/>
+    while true:
+      try:
+        this.env <- awaitEnvironment(this.domain, this.envName, 10000)
+        debug("EnvironmentWatcher: connected to environment", this.envName)
+        break
+      catch err:
+        debug("EnvironmentWatcher: awaitEnvironment", this.envName, "timed out, retrying.")
+
+    this.startWatching()
+
+  startWatching() ->
+    { env } = this
+    debug('EnvironmentWatcher: watching environment', env.name)
+    env.on('providerChanged', this.changed)
+    env.on('serviceChanged', this.changed)
+
+    debug('EnvironmentWatcher: priming with all resources', env.name)
+    this.changedAny()
+
+  beginBatch() ->
+    if not this.timeout:
+      this.timeout = setTimeout(this.processBatch, 250)
+
+  changed(entity): void =>
+    if this.interestMask(entity):
+      this.entitiesObserved.set(entity, true)
+    this.beginBatch()
+
+  changedAny(): void ->
+    for val svc in this.env.service: this.changed(svc)
+    for val prov in this.env.provider: this.changed(prov)
+
+  processBatch(): void =>
+    this.timeout = null
+    interested = Array.from(this.entitiesObserved.keys())
+    if interested.length > 0:
+      this.entitiesObserved = new Map()
+      this.callback(this.env, interested)
