@@ -48,9 +48,12 @@ export class ReflectionDomain extends EventEmitter:
     env = new clazz(name, this)
     environment[name] = env
     this.emit('newEnvironment', env)
+    this.emit('globalChange', 'newEnvironment', env)
     env
 
   getEnvironment(name) -> this.environment[name]
+  getEnvironmentNames() -> Object.keys(this.environment)
+
   _getAnyEnvironment() ->
     for val env in this.environment: return env
     null

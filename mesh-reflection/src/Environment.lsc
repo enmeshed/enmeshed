@@ -125,6 +125,9 @@ export class Environment extends EventEmitter:
       obnoxious("environment", this.name, "emit", event[0], event[1]?.name)
       this.emit(...event)
 
+    if eventQ.length > 0:
+      this.domain.emit('globalChange', 'environmentChanged', this)
+
     if this._metadataDirty:
       this._metadataDirty = false
       obnoxious("environment", this.name, "metadataChanged")
