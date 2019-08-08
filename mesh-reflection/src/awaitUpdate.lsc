@@ -104,8 +104,10 @@ export awaitResource(environment, kind, rsrcName, timeout = 0) -/>
       environment.getResource(kind, rsrcName)
     else:
       environment.getAnyResource(kind)
-    obnoxious("awaitResource in", environment.name, ": found", kind, rsrc.name)
-    if rsrc: return rsrc
+
+    if rsrc:
+      obnoxious("awaitResource in", environment.name, ": found", kind, rsrc?.name)
+      return rsrc
 
     // Wait for a change
     t0 = Date.now()
