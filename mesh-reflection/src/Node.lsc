@@ -32,12 +32,14 @@ export class Node:
 
   join(environmentName, providerName): void -/>
     { domain } = this
+    if not environmentName:
+      throw new Error(`node.join: environment name is required`)
     debug('node.join: awaiting environment', environmentName)
     this.environment <- awaitEnvironment(domain, environmentName, 60000)
     if providerName:
       this.providerName = providerName
       debug('node.join: awaiting provider', providerName)
-      this.provider <- awaitResource(this.environment, 'provider', providerName, 60000)
+      this.provider <- awaitResource(this.environment, 'provider', providerName, 30000)
     debug('node.join: joined')
     this._joined()
 
