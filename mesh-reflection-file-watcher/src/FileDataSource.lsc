@@ -8,18 +8,22 @@ export class FileWatcher:
     this.filename = filename
     this.callback = callback
 
-  start() ->
+  start(): void ->
+    if this.watching: return
     debug('starting watch', this.filename)
+    this.watching = true
     fs.watchFile(this.filename, this.fileChanged)
     this.callback() // initial read
 
-  fileChanged(curr, prev) =>
+  fileChanged(curr, prev): void =>
     if (curr.mtime != prev.mtime):
       this.callback()
 
-  stop() ->
-    debug('stopping watch', this.filename)
-    fs.unwatchFile(this.filename, this.fileChanged)
+  stop(): void ->
+    if this.watching:
+      debug('stopping watch', this.filename)
+      fs.unwatchFile(this.filename, this.fileChanged)
+      this.watching = false
 
   readSync() ->
     fs.readFileSync(this.filename)
