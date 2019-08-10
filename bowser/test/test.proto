@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-service TestService {
-  rpc unary(TestMessage) returns (TestMessage);
-}
-
-message TestMessage {
-  string message = 1;
-}
