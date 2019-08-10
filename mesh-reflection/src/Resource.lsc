@@ -1,4 +1,6 @@
 isEqual = require('lodash.isequal')
+deferred = require('p-defer')
+debug = require('debug')('mesh-reflection')
 obnoxious = require('debug')('mesh-reflection:obnoxious')
 
 function eqSet(as, bs) {
@@ -6,6 +8,35 @@ function eqSet(as, bs) {
     for (var a of as) if (!bs.has(a)) return false
     return true
 }
+
+truthy() -> true
+
+export awaitResourceUpdate(resource, timeout = 0, filt = truthy): Promise<bool> ->
+  kind = resource.constructor.kind
+  name = resource.name
+  changeEv = kind + 'Changed'
+  environment = resource.getEnvironment()
+  debug("awaiting update for", kind, name, "in environment", environment.name)
+
+  def = deferred()
+  let timer = null
+
+  listener = (changedResource, didTimeout) ->
+    if not didTimeout:
+      if changedResource != resource: return
+      if not filt(changedResource, resource): return
+
+    obnoxious("awaitResourceUpdate listener", if didTimeout: 'timed out' else: 'fired')
+    if timer: clearTimeout(timer)
+    environment.off(changeEv, listener)
+    def.resolve(not didTimeout)
+
+  if timeout > 0:
+    now timer = setTimeout(-> listener(null, true), timeout)
+
+  environment.on(changeEv, listener)
+
+  def.promise
 
 export class Resource:
   static kind = "resource"
@@ -70,6 +101,13 @@ export class Service extends Resource:
     providerName = environment.getProviderNameForServiceName(this.name)
     this.__meta.provider = environment.getProvider(providerName)
     if lastProvider != this.__meta.provider: this._dirty()
+
+  // Wait until this service has a provider, with optional timeout.
+  awaitProvider(timeout = 0) -/>
+    provider = this.getProvider()
+    if provider: return provider
+    <- awaitResourceUpdate(this, timeout, (x) -> x.getProvider())
+    this.getProvider()
 
 export class Provider extends Resource:
   static kind = "provider"

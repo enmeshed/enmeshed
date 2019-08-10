@@ -1,5 +1,5 @@
 import { Environment } from './Environment'
-import { Resource } from './Resource'
+import { Resource, awaitResourceUpdate } from './Resource'
 
 deferred = require('p-defer')
 debug = require('debug')('mesh-reflection')
@@ -22,30 +22,6 @@ awaitEnvironmentUpdate(environment, timeout = 0): Promise<bool> ->
 
   environment.on('providersChanged', listener)
   environment.on('servicesChanged', listener)
-
-  def.promise
-
-awaitResourceUpdate(resource, timeout = 0): Promise<bool> ->
-  kind = resource.constructor.kind
-  name = resource.name
-  changeEv = kind + 'Changed'
-  environment = resource.getEnvironment()
-  debug("awaiting update for", kind, name, "in environment", environment.name)
-
-  def = deferred()
-  let timer = null
-
-  listener = (changedResource, didTimeout) ->
-    if (changedResource != resource) and (not didTimeout): return
-    obnoxious("awaitResourceUpdate listener", if didTimeout: 'timed out' else: 'fired')
-    if timer: clearTimeout(timer)
-    environment.off(changeEv, listener)
-    def.resolve(not didTimeout)
-
-  if timeout > 0:
-    now timer = setTimeout(-> listener(null, true), timeout)
-
-  environment.on(changeEv, listener)
 
   def.promise
 
