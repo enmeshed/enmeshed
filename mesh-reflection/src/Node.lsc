@@ -44,7 +44,7 @@ export class Node:
     this._joined()
 
   // Return the NodeLocalPort object corresponding to the named service
-  getServicePort(serviceName): NodeLocalPort ->
+  getServicePort(serviceName): NodeLocalPort -/>
     extant = this.nodeServices[serviceName]
     if extant: return extant
 
@@ -61,7 +61,7 @@ export class Node:
 
   // Return an interface that will help this node connect to the
   // named service.
-  getClientPort(serviceName): NodeLocalPort ->
+  getClientPort(serviceName): NodeLocalPort -/>
     extant = this.nodeClients[serviceName]
     if extant: return extant
 
@@ -70,10 +70,11 @@ export class Node:
     if (not mrSvc):
       throw new Error(`Cannot find service named ${serviceName}`)
 
-    debug('node.getClientPort: creating port for service', serviceName)
+    debug('node.getClientPort: creating client port for service', serviceName)
     cliPort = this._createClientPort(mrSvc)
     this.nodeClients[serviceName] = cliPort
-    cliPort.start()
+    debug('node.getClientPort: starting client port for service', serviceName)
+    <- cliPort.start()
     cliPort
 
   // Gracefully shutdown all services
