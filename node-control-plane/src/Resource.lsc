@@ -50,7 +50,7 @@ export class ResourceTypes:
     this._loadType(1, "envoy.api.v2.Cluster")
     this._loadType(2, "envoy.api.v2.RouteConfiguration")
     this._loadType(3, "envoy.api.v2.Listener")
-    this._loadType(4, "envoy.api.v2.Secret")
+    this._loadType(4, "envoy.api.v2.auth.Secret")
 
   forTypeId(id) -> this._byFqtn[id]
   forTypeUrl(url) -> this._byUrl[url]

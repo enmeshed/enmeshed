@@ -36,6 +36,7 @@ export class Controller:
     proto.require('envoy/api/v2/lds')
     proto.require('envoy/service/discovery/v2/ads')
     proto.require('envoy/service/discovery/v2/sds')
+    proto.require('envoy/api/v2/auth/cert')
     proto.load()
 
     this.Any = proto.type("google.protobuf.Any")
@@ -44,7 +45,7 @@ export class Controller:
       proto.type("envoy.api.v2.Cluster")
       proto.type("envoy.api.v2.RouteConfiguration")
       proto.type("envoy.api.v2.Listener")
-      proto.type("envoy.api.v2.Secret")
+      proto.type("envoy.api.v2.auth.Secret")
     ]
 
   // Invoked when an envoy node connects.
