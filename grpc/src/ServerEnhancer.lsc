@@ -60,22 +60,28 @@ export class ServerEnhancer:
     new Promise! (resolve, reject) ->
       server.tryShutdown! (err) -> if err: reject(err) else: resolve(true)
 
+  // Override in subclass to handle the creation of a new async request context.
+  beginAsyncRequest() -> return
+
   // Override in a subclass to control how JS errors are marshalled into
   // gRPC errors and returned to the client.
   marshalError(err) -> err
 
   _wrapUnary(asyncHandler) ->
     unaryAsyncHandler(call, callback): void =>
+      this.beginAsyncRequest()
       marshalUnary(asyncHandler(call.request, call), callback, this)
 
   _wrapRequestStream(asyncHandler) ->
     requestStreamAsyncHandler(stream, callback): void =>
+      this.beginAsyncRequest()
       // In Node 10, stream is an async iterable which is how request streams
       // should be processed.
       marshalUnary(asyncHandler(stream), callback, this)
 
   _wrapResponseStream(asyncGenerator) ->
     responseStreamAsyncHandler(stream): void =>
+      this.beginAsyncRequest()
       marshalStream(asyncGenerator, stream, this, stream.request, stream)
 
   _wrapBidiStream(handlerClass) ->

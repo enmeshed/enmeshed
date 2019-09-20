@@ -1,18 +1,35 @@
 import { Protocols, ServerEnhancer, ClientEnhancer, StreamHandler } from '..'
 grpc = require('@grpc/grpc-js')
+{ Contexty } = require('contexty')
+cuid = require('cuid')
 
 let protos = null
 let server = null
 let client = null
+let ctxContainer = null
+
+getContext() ->
+  ctxContainer.context
+
+pushContext(id) ->
+  console.log("pushContext current context id", getContext()?.id)
+  ctxContainer.create()
+  getContext().id = id or cuid()
+  console.log("pushContext new context id", getContext().id)
+
+class CtxServerEnhancer extends ServerEnhancer:
+  beginAsyncRequest() ->
+    pushContext(`REQUEST ${cuid()}`)
 
 unary(req) -/>
-  console.log("server serving TestService.unary", req)
+  console.log("unary context", getContext().id, "server serving TestService.unary", req)
   if req.message == 'fail':
     throw new Error("failed call")
   else:
     { message: 'unary reply: ' + req.message}
 
 clientStream(reqStream) -/>
+  console.log("clientStream context", getContext().id)
   let str = ''
   for await (buf of reqStream):
     console.log("server serving TestService.clientStream got:" + buf.message)
@@ -24,6 +41,7 @@ clientStream(reqStream) -/>
   { message: 'stream concatenated: ' + str }
 
 serverStream(req) -*/>
+  console.log("serverStream context", getContext().id)
   yield { message: 'server stream echo: ' }
   if req.message == 'fail':
     throw new Error("failed call")
@@ -48,13 +66,16 @@ class BidiStreamHandler extends StreamHandler:
 
 // Launch grpc server
 beforeAll! -/>
+  now ctxContainer = new Contexty()
+  pushContext("GLOBAL")
+
   try:
     now protos = new Protocols()
     protos.setProtoPath('test')
     protos.require('test')
     protos.load()
 
-    now server = new ServerEnhancer(new grpc.Server())
+    now server = new CtxServerEnhancer(new grpc.Server())
     server.addService(protos.service("TestService"), {
       unary
       clientStream
