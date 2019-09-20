@@ -29,6 +29,8 @@ export class Node:
 
   // Node connected to control plane.
   didConnect(connection): void ->
+    debug("node", this.key, "didConnect")
+
     if this.connection:
       throw new Error("Node connected twice")
 
