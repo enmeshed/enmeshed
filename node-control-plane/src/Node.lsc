@@ -74,6 +74,10 @@ export class Node:
   discoveryRequest(packet): void ->
     if packet.type_url:
       type = this.controller.types.forTypeUrl(packet.type_url)
+      if not type:
+        debug("received discovery request for unidentified type:", packet.type_url)
+        // Cannot process this packet.
+        return
       this.discoveryRequestForType(type, packet)
       return
 
