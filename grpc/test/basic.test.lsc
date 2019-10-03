@@ -140,13 +140,13 @@ test! 'clientStream server error', -/>
     expect(err.details).toBe("failed call")
 
 test! "serverStream", -/>
-  stream = client.serverStream({ message: "hello world" })
+  stream <- client.serverStream({ message: "hello world" })
   let str = ''
   for await (packet of stream): now str += packet.message
   expect(str).toBe('server stream echo: hello world')
 
 test! "serverStream error", -/>
-  stream = client.serverStream({ message: "fail" })
+  stream <- client.serverStream({ message: "fail" })
   try:
     let str = ''
     for await (packet of stream): now str += packet.message

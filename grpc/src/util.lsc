@@ -1,4 +1,18 @@
 deferred = require('p-defer')
+grpc = require('@grpc/grpc-js')
+
+export Credentials = grpc.credentials
+export ServerCredentials = grpc.ServerCredentials
+export Metadata = grpc.Metadata
+
+export assignObjectToMetadata(metadata, object) ->
+  for key k, val v in object:
+    metadata.set(k, v)
+
+  metadata
+
+export metadataFromObject(object) ->
+  assignObjectToMetadata(new Metadata(), object)
 
 // Classify a method on a grpc client object
 export classifyMethod(method): string ->

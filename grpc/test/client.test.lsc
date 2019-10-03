@@ -1,0 +1,84 @@
+import { TestServer } from './testServer'
+import { ClientEnhancer, Credentials } from '..'
+cuid = require('cuid')
+
+let protos, server, client
+
+class InstrumentedClientEnhancer extends ClientEnhancer:
+  requestWillBegin(ctx) ->
+    ctx.id = cuid()
+    console.log("request", ctx.id, "willBegin", ctx)
+
+  requestDidEnd(ctx) ->
+    console.log("request", ctx.id, "didEnd", ctx)
+
+beforeAll! -/>
+  try:
+    now server = new TestServer()
+    now protos = server.protos
+    <- server.start()
+    now client = new InstrumentedClientEnhancer(protos.client('TestService', '127.0.0.1:31337', Credentials.createInsecure()))
+  catch err:
+    console.error(err)
+
+afterAll! -/>
+  <- server.stop()
+
+test! "unary", -/>
+  resp <- client.unary({message: 'test message'})
+  expect(resp.message).toBe("unary reply: test message")
+
+test! "unary server error", -/>
+  let err = null
+  try:
+    <- client.unary({message: 'fail'})
+  catch xerr:
+    now err = xerr
+  expect(err.details).toBe('failed call')
+
+test! "clientStream", -/>
+  gen = () -*/>
+    yield { message: "hello " }
+    yield { message: "world" }
+
+  resp <- client.clientStream(gen)
+  expect(resp.message).toBe("stream concatenated: hello world")
+
+test! 'clientStream client error', -/>
+  gen = () -*/>
+    yield { message: "hello" }
+    throw new Error("client error")
+    yield { message: "World" }
+
+  try:
+    resp <- client.clientStream(gen)
+    expect(true).toBe(false)
+  catch err:
+    expect(err.message).toBe("client error")
+
+test! 'clientStream server error', -/>
+  gen = () -*/>
+    yield { message: "hello" }
+    yield { message: "fail" }
+    yield { message: "world" }
+
+  try:
+    resp <- client.clientStream(gen)
+    expect(true).toBe(false)
+  catch err:
+    expect(err.details).toBe("failed call")
+
+test! "serverStream", -/>
+  stream <- client.serverStream({ message: "hello world" })
+  let str = ''
+  for await (packet of stream): now str += packet.message
+  expect(str).toBe('server stream echo: hello world')
+
+test! "serverStream error", -/>
+  stream <- client.serverStream({ message: "fail" })
+  try:
+    let str = ''
+    for await (packet of stream): now str += packet.message
+    expect(true).toBe(false)
+  catch err:
+    expect(err.details).toBe("failed call")

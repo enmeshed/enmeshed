@@ -1,32 +1,70 @@
 import { classifyMethod } from './util'
 import { handleStream } from './StreamHandler'
+import { ServerRequestContext } from './RequestContext'
 
 grpc = require('@grpc/grpc-js')
 
 // XXX: implement and export this!
 class UnaryResponse {}
 
-marshalUnary(promisedUnary, callback, marshalErrorContext) ->
-  promisedUnary
-    .then! (result) ->
-      if typeof(result) != 'object':
-        throw new Error("invalid response")
-      elif result instanceof UnaryResponse:
-        callback(null, result.value, result.trailer, result.flags)
-      else:
-        callback(null, result)
-    .catch! (err) ->
-      callback(marshalErrorContext.marshalError(err))
+// Dispatch node.js callback for a unary-style request
+dispatchNodeCallback(requestContext, callback) ->
+  if requestContext.error:
+    callback(requestContext.error)
+  else:
+    { result } = requestContext
+    if typeof(result) != 'object':
+      requestContext.error = new Error("invalid response from grpc method handler, expected an object")
+      callback(requestContext.error)
+    elif result instanceof UnaryResponse:
+      callback(null, result.value, result.trailer, result.flags)
+    else:
+      callback(null, result)
 
-// Marshal a stream of response objects produced by an async generator function.
-marshalStream(asyncGenerator, stream, marshalErrorContext, arg1, arg2) -/>
-  try:
-    asyncGeneratorInstance = asyncGenerator(arg1, arg2)
-    for await (packet of asyncGeneratorInstance): stream.write(packet)
-    stream.end()
-  catch err:
-    // gRPC automatically destroys the stream on error event.
-    stream.emit('error', marshalErrorContext.marshalError(err))
+wrapUnaryHandler(serverEnhancer, methodName, unaryHandler) ->
+  grpcUnaryHandler(call, callback): void -/>
+    requestContext = new ServerRequestContext(serverEnhancer, 'unary', methodName)
+    requestContext.call = call
+    requestContext.metadata = call.metadata
+
+    try:
+      serverEnhancer.requestWillBegin(requestContext)
+      requestContext.result <- unaryHandler(call.request, call, requestContext)
+    catch err:
+      requestContext.error = serverEnhancer.marshalError(err)
+
+    dispatchNodeCallback(requestContext, callback)
+    serverEnhancer.requestDidEnd(requestContext)
+
+wrapRequestStreamHandler(serverEnhancer, methodName, rsHandler) ->
+  grpcRequestStreamHandler(stream, callback): void -/>
+    requestContext = new ServerRequestContext(serverEnhancer, 'requestStream', methodName)
+    requestContext.metadata = stream.metadata
+
+    try:
+      serverEnhancer.requestWillBegin(requestContext)
+      requestContext.result <- rsHandler(stream, requestContext)
+    catch err:
+      requestContext.error = serverEnhancer.marshalError(err)
+
+    dispatchNodeCallback(requestContext, callback)
+    serverEnhancer.requestDidEnd(requestContext)
+
+wrapResponseStreamGenerator(serverEnhancer, methodName, responseGenerator) ->
+  grpcResponseStreamHandler(stream): void -/>
+    requestContext = new ServerRequestContext(serverEnhancer, 'responseStream', methodName)
+    requestContext.metadata = stream.metadata
+
+    try:
+      serverEnhancer.requestWillBegin(requestContext)
+      asyncIterable = responseGenerator(stream.request, stream, requestContext)
+      for await (packet of asyncIterable): stream.write(packet)
+      stream.end()
+    catch err:
+      requestContext.error = serverEnhancer.marshalError(err)
+      stream.emit('error', requestContext.error)
+
+    serverEnhancer.requestDidEnd(requestContext)
 
 // XXX: metadata api
 export class ServerEnhancer:
@@ -60,29 +98,19 @@ export class ServerEnhancer:
     new Promise! (resolve, reject) ->
       server.tryShutdown! (err) -> if err: reject(err) else: resolve(true)
 
-  // Override in subclass to handle the creation of a new async request context.
-  beginAsyncRequest() -> return
+  // Override in subclass to perform processing before a request is sent.
+  // This method SHOULD NOT throw, as errors will be propagated into the gRPC
+  // call context.
+  requestWillBegin(requestContext: ServerRequestContext) -> return
+
+  // Override in subclass to perform processing after a request is complete.
+  // This method SHOULD NOT throw, as errors will be propagated into the gRPC
+  // call context.
+  requestDidEnd(requestContext: ServerRequestContext) -> return
 
   // Override in a subclass to control how JS errors are marshalled into
   // gRPC errors and returned to the client.
   marshalError(err) -> err
-
-  _wrapUnary(asyncHandler) ->
-    unaryAsyncHandler(call, callback): void =>
-      this.beginAsyncRequest()
-      marshalUnary(asyncHandler(call.request, call), callback, this)
-
-  _wrapRequestStream(asyncHandler) ->
-    requestStreamAsyncHandler(stream, callback): void =>
-      this.beginAsyncRequest()
-      // In Node 10, stream is an async iterable which is how request streams
-      // should be processed.
-      marshalUnary(asyncHandler(stream), callback, this)
-
-  _wrapResponseStream(asyncGenerator) ->
-    responseStreamAsyncHandler(stream): void =>
-      this.beginAsyncRequest()
-      marshalStream(asyncGenerator, stream, this, stream.request, stream)
 
   _wrapBidiStream(handlerClass) ->
     marshalContext = this
@@ -101,9 +129,9 @@ export class ServerEnhancer:
 
       // Wrap async handlers
       {[name]: match classifyMethod(methodDef):
-        | 'unary': this._wrapUnary(handler)
-        | 'requestStream': this._wrapRequestStream(handler)
-        | 'responseStream': this._wrapResponseStream(handler)
+        | 'unary': wrapUnaryHandler(this, name, handler)
+        | 'requestStream': wrapRequestStreamHandler(this, name, handler)
+        | 'responseStream': wrapResponseStreamGenerator(this, name, handler)
         | 'bidirectionalStream': this._wrapBidiStream(handler)
         | else: throw new Error("invalid method definition " + name)
       }

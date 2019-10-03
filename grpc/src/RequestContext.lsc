@@ -1,0 +1,36 @@
+import { Metadata, metadataFromObject } from './util'
+
+export class RequestContext:
+  // Request types
+  static unary = 'unary'
+  static requestStream = 'requestStream'
+  static responseStream = 'responseStream'
+  static bidirectionalStream = 'bidirectionalStream'
+
+  // Request type for this request
+  requestType = null
+
+  // Method name for this request
+  methodName = null
+
+handleMetadata(metadata) ->
+  if not metadata:
+    new Metadata()
+  elif metadata instanceof Metadata:
+    metadata.clone()
+  elif typeof(metadata) == 'object':
+    metadataFromObject(metadata)
+  else:
+    new Metadata()
+
+export class ClientRequestContext extends RequestContext:
+  constructor(client, requestType, methodName, metadata, request) ->
+    super(requestType, methodName)
+    this.client = client
+    this.request = request
+    this.metadata = handleMetadata(metadata)
+
+export class ServerRequestContext extends RequestContext:
+  constructor(server, requestType, methodName) ->
+    super(requestType, methodName)
+    this.server = server

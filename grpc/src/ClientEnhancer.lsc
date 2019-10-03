@@ -1,44 +1,90 @@
 import { classifyMethod } from './util'
 import { handleStream, StreamHandler } from './StreamHandler'
+import { ClientRequestContext } from './RequestContext'
 
-// Based on grpc-mod
-wrapUnaryMethod(method, context) ->
-  grpcUnary(request, metadata) ->
-    if metadata:
-      new Promise! (resolve, reject) ->
-        method.call(context, request, metadata, (err, response) -> if err: reject(err) else: resolve(response))
+
+wrapUnaryMethod(clientEnhancer, methodName, method, context) ->
+  grpcUnary(request, metadata) -/>
+    requestContext = new ClientRequestContext(clientEnhancer, 'unary', methodName, metadata, request)
+    clientEnhancer.requestWillBegin(requestContext)
+
+    let result, error
+
+    try:
+      now result <- new Promise! (resolve, reject) ->
+        method.call(context, request, requestContext.metadata, (err, response) -> if err: reject(err) else: resolve(response))
+    catch err:
+      // TODO: wrap errors insofar as they may be network errors, remote RPC failures, etc
+      now error = clientEnhancer.unmarshalError(err)
+
+    requestContext.error = error
+    requestContext.response = result
+    clientEnhancer.requestDidEnd(requestContext)
+
+    if error:
+      throw error
     else:
-      new Promise! (resolve, reject) ->
-        method.call(context, request, (err, response) -> if err: reject(err) else: resolve(response))
+      return result
 
 // Streams are already async iterable.
-wrapResponseStreamMethod(method, context) -> method.bind(context)
+wrapResponseStreamMethod(clientEnhancer, methodName, method, context) ->
+  grpcResponseStream(request, metadata) -/>
+    requestContext = new ClientRequestContext(clientEnhancer, 'responseStream', methodName, metadata, request)
+    clientEnhancer.requestWillBegin(requestContext)
+    let ended = false
+
+    callEnded(error): void ->
+      if ended: return
+      now ended = true
+      if error: requestContext.error = error
+      clientEnhancer.requestDidEnd(requestContext)
+
+    stream = method.call(context, request, requestContext.metadata)
+
+    stream.once('end', callEnded)
+    stream.once('error', callEnded)
+    stream.once('close', callEnded)
+
+    return stream
+
 
 // When calling a method with a request stream, the user provides an async
 // generator that produces the stream of values.
-wrapRequestStreamMethod(method, context) ->
-  grpcRequestStream(asyncGenerator, metadata) ->
+wrapRequestStreamMethod(clientEnhancer, methodName, method, context) ->
+  grpcRequestStream(asyncGenerator, metadata) -/>
+    requestContext = new ClientRequestContext(clientEnhancer, 'requestStream', methodName, metadata, null)
+    clientEnhancer.requestWillBegin(requestContext)
+
     // Promisify the grpc callback
     new Promise! (resolve, reject): void => {
       let stream = null
+
+      callFailed(localError, remoteError): void ->
+        if remoteError: now remoteError = clientEnhancer.unmarshalError(remoteError)
+        err = localError or remoteError
+        if localError: stream.cancel()
+        if err: requestContext.error = err
+        clientEnhancer.requestDidEnd(requestContext)
+        reject(err)
+
+      callSucceeded(response): void ->
+        requestContext.response = response
+        clientEnhancer.requestDidEnd(requestContext)
+        resolve(response)
 
       // Dump from the async generator to the stream
       writer = (): void -/>
         try:
           for await (packet of asyncGenerator(stream)): stream.write(packet)
         catch err:
-          // If the async generator errors, cancel the call to the
-          // server.
-          stream.cancel()
-          // XXX: custom error type, "ClientError"?
-          reject(err)
+          callFailed(err)
         finally:
           stream.end()
 
-      now stream = if metadata:
-        method.call(context, metadata, (err, response) -> if err: reject(err) else: resolve(response))
-      else:
-        method.call(context, (err, response) -> if err: reject(err) else: resolve(response))
+      now stream = method.call(context, requestContext.metadata, (err, response) ->
+        if err: callFailed(null, err) else: callSucceeded(response)
+      )
+
 
       writer()
     } // new Promise!
@@ -55,16 +101,16 @@ wrapBidiStreamMethod(method, context) ->
     handleStream(stream, handler)
     handler
 
-wrapMethod(methodName, method, context) ->
+wrapMethod(enhancer, methodName, method, context) ->
   classification = classifyMethod(method)
 
   match classification:
     | 'unary':
-      wrapUnaryMethod(method, context)
+      wrapUnaryMethod(enhancer, methodName, method, context)
     | 'requestStream':
-      wrapRequestStreamMethod(method, context)
+      wrapRequestStreamMethod(enhancer, methodName, method, context)
     | 'responseStream':
-      wrapResponseStreamMethod(method, context)
+      wrapResponseStreamMethod(enhancer, methodName, method, context)
     | 'bidirectionalStream':
       wrapBidiStreamMethod(method, context)
     | else:
@@ -77,9 +123,25 @@ export class ClientEnhancer:
     this.grpcClient = grpcClient
     this._wrapMethods()
 
+  // Override in subclass to perform processing before a request is sent.
+  // This method SHOULD NOT throw, as errors will be propagated into the gRPC
+  // call context.
+  requestWillBegin(requestContext: ClientRequestContext) -> return
+
+  // Override in subclass to perform processing after a request is complete.
+  // This method SHOULD NOT throw, as errors will be propagated into the gRPC
+  // call context.
+  requestDidEnd(requestContext: ClientRequestContext) -> return
+
+  // Override in subclass to decode errors sent from the server. This can
+  // be used to e.g. turn an Error with a 404 code into a NotFoundError.
+  //
+  // XXX: not working yet.
+  unmarshalError(err) -> err
+
   _wrapMethods(): void ->
     { grpcClient } = this
 
     for key k, val method in Object.getPrototypeOf(grpcClient):
       if typeof(method) == 'function':
-        this[k] = wrapMethod(k, method, grpcClient)
+        this[k] = wrapMethod(this, k, method, grpcClient)

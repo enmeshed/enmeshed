@@ -1,0 +1,82 @@
+// Polyvalent grpc test server for unit testing
+import { Protocols, ServerEnhancer, StreamHandler, ServerCredentials } from '..'
+
+grpc = require('@grpc/grpc-js')
+
+unary(req) -/>
+  if req.message == 'fail':
+    throw new Error("failed call")
+  else:
+    { message: 'unary reply: ' + req.message}
+
+clientStream(reqStream) -/>
+  let str = ''
+  for await (buf of reqStream):
+    console.log("server serving TestService.clientStream got:" + buf.message)
+    msg = buf.message
+    if msg == 'fail':
+      throw new Error('failed call')
+    now str += buf.message
+  console.log("clientStream for-await loop exited")
+  { message: 'stream concatenated: ' + str }
+
+serverStream(req) -*/>
+  yield { message: 'server stream echo: ' }
+  if req.message == 'fail':
+    throw new Error("failed call")
+  yield { message: req.message }
+
+class BidiStreamHandler extends StreamHandler:
+  start() ->
+    console.log("BidiStreamHandler: started")
+    this.write({ message: 'welcome' })
+  error(err, isInternal) ->
+    console.error(isInternal, err)
+  data(packet) -/>
+    { message } = packet
+    console.log("BidiStreamHandler data: ", message)
+    if message == 'fail':
+      throw new Error('failed call')
+    else:
+      { message: 'echo: ' + message }
+  hangup() ->
+    console.log("BidiStreamHandler: They hung up")
+    this.end()
+
+defaultBindings = {
+  unary
+  clientStream
+  serverStream
+  bidiStream: BidiStreamHandler
+}
+
+export class TestServer:
+  static defaultBindings = defaultBindings
+
+  constructor(protos = null, bindings = defaultBindings, EnhancerClass = ServerEnhancer) ->
+    this.bindings = bindings
+    this.EnhancerClass = EnhancerClass
+    if protos:
+      this.protos = protos
+    else:
+      now protos = new Protocols()
+      protos.setProtoPath('test')
+      protos.require('test')
+      this.protos = protos
+
+
+  start(port = 31337) -/>
+    { bindings, EnhancerClass, protos } = this
+    protos.load()
+
+    server = new EnhancerClass(new grpc.Server())
+    this.server = server
+    server.addService(protos.service("TestService"), bindings)
+
+    <- server.bind(`0.0.0.0:${port}`, ServerCredentials.createInsecure())
+    server.start()
+    console.log("started grpc server")
+
+  stop() -/>
+    console.log("stopping grpc server")
+    <- this.server.shutdown()
