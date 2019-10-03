@@ -101,12 +101,12 @@ export class ServerEnhancer:
   // Override in subclass to perform processing before a request is sent.
   // This method SHOULD NOT throw, as errors will be propagated into the gRPC
   // call context.
-  requestWillBegin(requestContext: ServerRequestContext) -> return
+  requestWillBegin(requestContext: ServerRequestContext): void -> return
 
   // Override in subclass to perform processing after a request is complete.
   // This method SHOULD NOT throw, as errors will be propagated into the gRPC
   // call context.
-  requestDidEnd(requestContext: ServerRequestContext) -> return
+  requestDidEnd(requestContext: ServerRequestContext): void -> return
 
   // Override in a subclass to control how JS errors are marshalled into
   // gRPC errors and returned to the client.

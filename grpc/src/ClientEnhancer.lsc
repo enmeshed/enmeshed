@@ -126,12 +126,12 @@ export class ClientEnhancer:
   // Override in subclass to perform processing before a request is sent.
   // This method SHOULD NOT throw, as errors will be propagated into the gRPC
   // call context.
-  requestWillBegin(requestContext: ClientRequestContext) -> return
+  requestWillBegin(requestContext: ClientRequestContext): void -> return
 
   // Override in subclass to perform processing after a request is complete.
   // This method SHOULD NOT throw, as errors will be propagated into the gRPC
   // call context.
-  requestDidEnd(requestContext: ClientRequestContext) -> return
+  requestDidEnd(requestContext: ClientRequestContext): void -> return
 
   // Override in subclass to decode errors sent from the server. This can
   // be used to e.g. turn an Error with a 404 code into a NotFoundError.
