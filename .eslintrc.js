@@ -13,6 +13,7 @@ module.exports = {
     "es6": true
   },
   "rules": {
-    "@lightscript/no-implicit-imports": 1
+    "@lightscript/no-implicit-imports": 1,
+    "no-unreachable": 0
   }
 }
