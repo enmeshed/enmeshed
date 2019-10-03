@@ -5,21 +5,9 @@
   "license": "UNLICENSED",
   "description": "Monorepo for enmeshed projects.",
   "scripts": {
-    "clean": "rimraf lib coverage .nyc_output",
-    "clean:modules": "rimraf node_modules",
-    "superclean": "run-s clean clean:modules",
-    "build": "run-s build:rollup",
-    "build:coverage": "run-s build:rollup:coverage",
-    "build:rollup": "rollup -c",
-    "build:plain": "babel --source-maps -x \".js\",\".lsc\" src --out-dir lib",
-    "build:rollup:coverage": "cross-env COVERAGE=true rollup -c",
-    "test": "run-s clean build test:only",
-    "test:only": "jest",
-    "test:only:coverage": "jest --coverage",
-    "test:debug": "node --inspect-brk $(npm bin)/jest -i",
-    "coverage": "run-s clean build:coverage test:only:coverage",
-    "lint": "eslint --ext .js,.lsc src",
-    "lint:fix": "eslint --fix --ext .js,.lsc src"
+    "clean": "lerna run clean",
+    "build": "lerna run build",
+    "test": "lerna run test:only"
   },
   "dependencies": {
     "lerna": "^3.15.0"
