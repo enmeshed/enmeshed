@@ -13,6 +13,10 @@ export class RequestContext:
   // Method name for this request
   methodName = null
 
+  constructor(requestType, methodName) ->
+    this.requestType = requestType
+    this.methodName = methodName
+
 handleMetadata(metadata) ->
   if not metadata:
     new Metadata()
