@@ -7,7 +7,9 @@
   "scripts": {
     "clean": "lerna run clean",
     "build": "lerna run build",
-    "test": "lerna run test:only"
+    "test": "lerna run test:only",
+    "publish:execute": "lerna publish",
+    "publish": "run-s build publish:execute"
   },
   "dependencies": {
     "lerna": "^3.15.0"
