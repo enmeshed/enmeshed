@@ -22,17 +22,17 @@ export channelFactoryOverride(address, credentials, options) ->
   if (urlx.protocol != 'http') and (urlx.protocol != 'https'):
     return new grpc.Channel(address, credentials, options)
 
+  { host, port, pathname } = urlx
+
   // Remove the "channelFactoryOverride" option or grpc will log a warning
   // to the console
   nextOptions = Object.assign({}, options)
   delete nextOptions.channelFactoryOverride
 
   // Determine path prefix that will be applied to all calls
-  { host, pathname } = urlx
   prefix = if pathname and (pathname != '/'): pathname else: ''
 
-  // We must pass along a DNS authority or gRPC will attempt to parse
-  // our prefixed url and crash.
-  nextOptions['grpc.default_authority'] = host
+  // Recompute the address to satisfy GRPC's dns resolution scheme
+  nextAddress = if port: `${host}:${port}` else: host
 
-  new PathAwareChannel(prefix, address, credentials, nextOptions)
+  new PathAwareChannel(prefix, nextAddress, credentials, nextOptions)
