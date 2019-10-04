@@ -22,7 +22,7 @@ export channelFactoryOverride(address, credentials, options) ->
   if (urlx.protocol != 'http:') and (urlx.protocol != 'https:'):
     return new grpc.Channel(address, credentials, options)
 
-  { host, port, pathname } = urlx
+  { host, pathname } = urlx
 
   // Remove the "channelFactoryOverride" option or grpc will log a warning
   // to the console
@@ -33,6 +33,6 @@ export channelFactoryOverride(address, credentials, options) ->
   prefix = if pathname and (pathname != '/'): pathname else: ''
 
   // Recompute the address to satisfy GRPC's dns resolution scheme
-  nextAddress = if port: `${host}:${port}` else: host
+  nextAddress = host
 
   new PathAwareChannel(prefix, nextAddress, credentials, nextOptions)
