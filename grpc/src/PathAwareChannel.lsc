@@ -19,7 +19,7 @@ export channelFactoryOverride(address, credentials, options) ->
   if not urlx:
     return new grpc.Channel(address, credentials, options)
 
-  if (urlx.protocol != 'http') and (urlx.protocol != 'https'):
+  if (urlx.protocol != 'http:') and (urlx.protocol != 'https:'):
     return new grpc.Channel(address, credentials, options)
 
   { host, port, pathname } = urlx
