@@ -4,20 +4,35 @@ grpc = require('@grpc/grpc-js')
 
 // Rewire Google's channel implementation to support URL path prefix.
 export class PathAwareChannel extends grpc.Channel:
-  constructor(address, credentials, options) ->
+  constructor(prefix, address, credentials, options) ->
     super(address, credentials, options)
-    urlx = new url.URL(`http://${address}`)
-    { pathname } = urlx
-    this.prefix = if pathname and (pathname != '/'): pathname else: ''
+    this.prefix = prefix
 
   createCall(method, deadline, host, parentCall, propagateFlags) ->
     { prefix } = this
     super.createCall(prefix + method, deadline, host, parentCall, propagateFlags)
 
 export channelFactoryOverride(address, credentials, options) ->
+  // Only use PathAwareChannels for http or https urls.
+  urlx = try: new url.URL(address) catch: null
+
+  if not urlx:
+    return new grpc.Channel(address, credentials, options)
+
+  if (urlx.protocol != 'http') and (urlx.protocol != 'https'):
+    return new grpc.Channel(address, credentials, options)
+
   // Remove the "channelFactoryOverride" option or grpc will log a warning
   // to the console
   nextOptions = Object.assign({}, options)
   delete nextOptions.channelFactoryOverride
 
-  new PathAwareChannel(address, credentials, nextOptions)
+  // Determine path prefix that will be applied to all calls
+  { host, pathname } = urlx
+  prefix = if pathname and (pathname != '/'): pathname else: ''
+
+  // We must pass along a DNS authority or gRPC will attempt to parse
+  // our prefixed url and crash.
+  nextOptions['grpc.default_authority'] = host
+
+  new PathAwareChannel(prefix, address, credentials, nextOptions)
