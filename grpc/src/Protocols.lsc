@@ -1,18 +1,19 @@
 import path from 'path'
 import fs from 'fs'
-import { loadSync } from './grpcProtoLoader'
 import { Protobuf } from './protobuf'
 import { channelFactoryOverride } from './PathAwareChannel'
+import { Loader } from './protocols/Loader'
 
 grpc = require('@grpc/grpc-js')
 
-at(obj, path) ->
+export at(obj, path) ->
   let ret = obj
   for elem e in path:
     now ret = ret[e]
   ret
 
 export class Protocols:
+  _loader = null
   _loaded = false
   _root = null
   _includeDirs = []
@@ -40,22 +41,27 @@ export class Protocols:
   client(protoName, port, credentials, opts) ->
     now opts = Object.assign({}, opts, {channelFactoryOverride})
     pth = protoName.split('.')
-    client = this.findGrpcPackage(pth)
-    if not client:
+    def = this.findGrpcPackage(pth)
+    if not def:
       throw new Error(`Protocols.client: no protocol ${protoName} was loaded.`)
+    client = def.client
     if not credentials: now credentials = grpc.credentials.createInsecure()
     new client(port, credentials, opts)
 
   // Retrieve a gRPC service def for the given named service
   service(protoName) ->
     pth = protoName.split('.')
-    client = this.findGrpcPackage(pth)
-    if not client:
+    def = this.findGrpcPackage(pth)
+    if not def:
       throw new Error(`Protocols.service: no protocol ${protoName} was loaded.`)
-    client.service
+    def.methods
 
   type(typeName) ->
-    this._root.lookupType(typeName)
+    pth = typeName.split('.')
+    def = this.findGrpcPackage(pth)
+    if not def:
+      throw new Error(`Protocols.service: no protocol ${typeName} was loaded.`)
+    def.getType()
 
   require(protoFile): void ->
     if this._loaded:
@@ -78,10 +84,9 @@ export class Protocols:
 
   load(): void ->
     if this._loaded: return
-    this._root = new Protobuf.Root()
+    opts = Object.assign({}, this.loadOptions)
+    this._loader = new Loader(opts)
+    this._loader.includeDirs = this._includeDirs
     if this._files.length > 0:
-      opts = Object.assign({}, this.loadOptions, { includeDirs: this._includeDirs, root: this._root })
-      pkgDef = loadSync(this._files, opts)
-      this._pkgs = grpc.loadPackageDefinition(pkgDef)
-    else:
-      this._pkgs = {}
+      this._loader._loadSync(this._files)
+    this._pkgs = this._loader.tree

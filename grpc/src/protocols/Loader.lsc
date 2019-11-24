@@ -1,0 +1,60 @@
+import path from 'path'
+import fs from 'fs'
+
+import { buildReflectionTree } from './Namespace'
+
+Protobuf = require("protobufjs")
+
+export class Loader:
+  // Currently loaded tree of protocol objects
+  tree = null
+  // Protobuf ROOT object
+  pbRoot = null
+  // Loader options
+  options = null
+  // Include paths
+  includeDirs = null
+
+  constructor(options) ->
+    this.options = options or {}
+    this.flush()
+
+  validateOptions() ->
+    // XXX: do something (check include paths for sanity etc)
+    return
+
+  _resolvePath(originalResolvePath, origin, target) ->
+    if path.isAbsolute(target): return target
+    if not this.includeDirs: return originalResolvePath(origin, target)
+
+    for elem directory in this.includeDirs:
+      fullPath = path.join(directory, target)
+      try:
+        fs.accessSync(fullPath, fs.constants.R_OK)
+        return fullPath
+      catch err:
+        continue
+
+    originalResolvePath(origin, target)
+
+  // Clear all loaded protocols and reset the tree to a clean state
+  flush(): void ->
+    this.validateOptions()
+    this.includeDirs = this.includeDirs or []
+    pbRoot = new Protobuf.Root()
+    pbRoot.resolvePath = this._resolvePath.bind(this, pbRoot.resolvePath)
+    this.pbRoot = pbRoot
+    this.tree = {}
+
+  // Asynchronously load a collection of protocol files into the definition
+  // tree.
+  load(filenames) -/>
+    <- this.pbRoot.load(filenames, this.options)
+    this.pbRoot.resolveAll()
+    buildReflectionTree(this.pbRoot, this.tree)
+    return
+
+  _loadSync(filenames): void ->
+    this.pbRoot.loadSync(filenames, this.options)
+    this.pbRoot.resolveAll()
+    buildReflectionTree(this.pbRoot, this.tree)

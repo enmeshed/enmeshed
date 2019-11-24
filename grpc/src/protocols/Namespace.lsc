@@ -1,0 +1,41 @@
+import { createDefinition } from './Definition'
+
+Protobuf = require("protobufjs")
+
+isReflectionObject(obj) ->
+  obj instanceof Protobuf.Service
+  or obj instanceof Protobuf.Type
+  or obj instanceof Protobuf.Enum
+
+isNamespaceBase(obj) ->
+  (obj instanceof Protobuf.Namespace or obj instanceof Protobuf.Root)
+  and (typeof obj.nested != 'undefined')
+
+joinName(baseName, name) ->
+  if baseName == '':
+    name
+  else:
+    baseName + '.' + name
+
+export buildReflectionTree(obj, tree = {}, prefix = '') ->
+  if not isNamespaceBase(obj):
+    return tree
+
+  for val nextObj in obj.nested:
+    if isReflectionObject(nextObj):
+      if not tree[nextObj.name]:
+        tree[nextObj.name] = createDefinition(
+          nextObj
+          joinName(prefix, nextObj.name)
+          {}
+        )
+    elif isNamespaceBase(nextObj):
+      tree[nextObj.name] = buildReflectionTree(
+        nextObj
+        tree[nextObj.name]
+        joinName(prefix, nextObj.name)
+      )
+
+  tree
+
+export class Namespace {}

@@ -1,0 +1,18 @@
+import { reportOOBError } from '../OOBErrorHandler'
+
+export createDeserializer(cls, options) ->
+  deserialize(argBuf) ->
+    try:
+      cls.toObject(cls.decode(argBuf), options)
+    catch(err):
+      reportOOBError(err)
+      throw err
+
+export createSerializer(cls) ->
+  serialize(arg) ->
+    try:
+      message = cls.fromObject(arg)
+      cls.encode(message).finish()
+    catch(err):
+      reportOOBError(err)
+      throw err

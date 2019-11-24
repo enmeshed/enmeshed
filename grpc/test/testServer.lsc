@@ -79,4 +79,5 @@ export class TestServer:
 
   stop() -/>
     console.log("stopping grpc server")
-    <- this.server.shutdown()
+    if this.server:
+      <- this.server.shutdown()

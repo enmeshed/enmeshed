@@ -1,0 +1,7 @@
+let oobErrorHandler = -> return
+
+export setOOBErrorHandler(handler): void ->
+  now oobErrorHandler = handler
+
+export reportOOBError(err): void ->
+  oobErrorHandler(err)

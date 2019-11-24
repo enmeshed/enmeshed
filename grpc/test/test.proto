@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/source_context.proto";
+
 service TestService {
   rpc unary(TestMessage) returns (TestMessage);
   rpc clientStream(stream TestMessage) returns (TestMessage);
@@ -9,4 +11,5 @@ service TestService {
 
 message TestMessage {
   string message = 1;
+  google.protobuf.SourceContext file = 2;
 }

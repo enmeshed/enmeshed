@@ -19,11 +19,15 @@
 // @enmeshed: Modification of gRPC's protobuf loader. The primary change
 // is to give programmatic access to the Protobuf root.
 
+import { reportOOBError } from './OOBErrorHandler'
+
 var fs = require("fs");
 var path = require("path");
 var Protobuf = require("protobufjs");
 var descriptor = require("protobufjs/ext/descriptor");
 var camelCase = require("lodash.camelcase");
+
+
 var descriptorOptions = {
     longs: String,
     enums: String,
@@ -65,13 +69,23 @@ function getAllHandledReflectionObjects(obj, parentName) {
 }
 function createDeserializer(cls, options) {
     return function deserialize(argBuf) {
-        return cls.toObject(cls.decode(argBuf), options);
+        try {
+            return cls.toObject(cls.decode(argBuf), options);
+        } catch(err) {
+            reportOOBError(err);
+            throw err;
+        }
     };
 }
 function createSerializer(cls) {
     return function serialize(arg) {
-        var message = cls.fromObject(arg);
-        return cls.encode(message).finish();
+        try {
+            var message = cls.fromObject(arg);
+            return cls.encode(message).finish();
+        } catch(err) {
+            reportOOBError(err);
+            throw err;
+        }
     };
 }
 function createMethodDefinition(method, serviceName, options) {

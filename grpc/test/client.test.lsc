@@ -16,12 +16,13 @@ beforeAll! -/>
   try:
     now server = new TestServer()
     now protos = server.protos
-    <- server.start()
-    now client = new InstrumentedClientEnhancer(protos.client('TestService', '127.0.0.1:31337', Credentials.createInsecure()))
+    <- server.start(31339)
+    now client = new InstrumentedClientEnhancer(protos.client('TestService', '127.0.0.1:31339', Credentials.createInsecure()))
   catch err:
     console.error(err)
 
 afterAll! -/>
+  console.log("test.client.afterAll")
   <- server.stop()
 
 test! "unary", -/>

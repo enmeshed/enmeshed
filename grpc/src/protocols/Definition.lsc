@@ -1,0 +1,56 @@
+import { createSerializer, createDeserializer } from './Serializer'
+
+grpc = require('@grpc/grpc-js')
+Protobuf = require("protobufjs")
+camelCase = require("lodash.camelcase")
+
+export class TypeDefinition:
+  getType() -> this._type
+
+export class MessageDefinition extends TypeDefinition:
+  constructor(pbjsMessage) ->
+    super()
+    this._type = pbjsMessage
+
+export class EnumDefinition extends TypeDefinition:
+  constructor(pbjsEnum) ->
+    super()
+    this._type = pbjsEnum
+
+export class MethodDefinition:
+  constructor(pbjsMethod, fqServiceName, options) ->
+    requestType = pbjsMethod.resolvedRequestType
+    responseType = pbjsMethod.resolvedResponseType
+    Object.assign(this, {
+      path: '/' + fqServiceName + '/' + pbjsMethod.name
+      requestStream: !!pbjsMethod.requestStream
+      responseStream: !!pbjsMethod.responseStream
+      requestSerialize: createSerializer(requestType)
+      requestDeserialize: createDeserializer(requestType, options)
+      responseSerialize: createSerializer(responseType)
+      responseDeserialize: createDeserializer(responseType, options)
+      // TODO(murgatroid99): Find a better way to handle this
+      originalName: camelCase(pbjsMethod.name)
+      requestType: requestType
+      responseType: responseType
+      _method: pbjsMethod
+    })
+
+export class ServiceDefinition:
+  constructor(pbjsService, fqn, options) ->
+    this.methods = {...for elem method in pbjsService.methodsArray:
+      {[method.name]: new MethodDefinition(method, fqn, options)}
+    }
+    this._service = pbjsService
+    this.client = grpc.makeGenericClientConstructor(this.methods, fqn, {})
+
+export createDefinition(pbjsObj, fqn, options) ->
+  match pbjsObj:
+    | instanceof Protobuf.Service:
+      new ServiceDefinition(pbjsObj, fqn, options)
+    | instanceof Protobuf.Type:
+      new MessageDefinition(pbjsObj)
+    | instanceof Protobuf.Enum:
+      new EnumDefinition(pbjsObj)
+    | else:
+      throw new Error('Type mismatch in reflection object handling')
