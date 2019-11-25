@@ -1,6 +1,7 @@
 import { ReflectionDomain } from './ReflectionDomain'
 import { awaitEnvironment, awaitResource } from './awaitUpdate'
 
+deferred = require('p-defer')
 debug = require('debug')('mesh-reflection')
 
 // Class representing a runtime node on the mesh.
@@ -26,6 +27,7 @@ export class Node:
 
   constructor() ->
     this.domain = new ReflectionDomain()
+    this.stoppedDeferred = deferred()
 
   setReflectionDataSource(ds) ->
     this.domain.start(ds)
@@ -78,7 +80,7 @@ export class Node:
     cliPort
 
   // Gracefully shutdown all services
-  stop() ->
+  stop() -/>
     debug('node.stop(): stopping reflection domain')
     this.domain.stop()
 
@@ -87,7 +89,12 @@ export class Node:
       ...for val svcPort in this.nodeServices: [svcPort.shutdown()]
       ...for val svcPort in this.nodeClients: [svcPort.shutdown()]
     ]
-    Promise.all(promises)
+    <- Promise.all(promises)
+
+    this.stoppedPromise.resolve(true)
+
+  // Return a Promise that resolves when this node is stopped.
+  stopped() -> this.stoppedDeferred.promise
 
   // Extension API
   _joined(): void -> return
