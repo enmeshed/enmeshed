@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+// Test ability to import Google well known types
 import "google/protobuf/source_context.proto";
 
 service TestService {

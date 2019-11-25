@@ -27,7 +27,7 @@ beforeAll! -/>
   try:
     now protos = new Protocols()
     protos.setProtoPath('test')
-    protos.require('test')
+    protos.require('TestService')
     protos.load()
 
     now server = new ServerEnhancer(new grpc.Server())

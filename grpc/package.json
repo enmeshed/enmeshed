@@ -31,7 +31,8 @@
     "@grpc/grpc-js": "^0.6.0",
     "lodash.camelcase": "^4.3.0",
     "p-defer": "^3.0.0",
-    "protobufjs": "^6.8.8"
+    "protobufjs": "^6.8.8",
+    "debug": "^4.1.1"
   },
   "devDependencies": {
     "contexty": "^1.0.0",

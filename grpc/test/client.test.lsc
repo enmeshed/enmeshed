@@ -2,7 +2,7 @@ import { TestServer } from './testServer'
 import { ClientEnhancer, Credentials } from '..'
 cuid = require('cuid')
 
-let protos, server, client
+let protos, server
 
 class InstrumentedClientEnhancer extends ClientEnhancer:
   requestWillBegin(ctx) ->
@@ -17,7 +17,6 @@ beforeAll! -/>
     now server = new TestServer()
     now protos = server.protos
     <- server.start(31339)
-    now client = new InstrumentedClientEnhancer(protos.client('TestService', '127.0.0.1:31339', Credentials.createInsecure()))
   catch err:
     console.error(err)
 
@@ -25,12 +24,18 @@ afterAll! -/>
   console.log("test.client.afterAll")
   <- server.stop()
 
+makeClient() -/>
+  c1 <- protos.client('TestService', '127.0.0.1:31339')
+  new InstrumentedClientEnhancer(c1)
+
 test! "unary", -/>
+  client <- makeClient()
   resp <- client.unary({message: 'test message'})
   expect(resp.message).toBe("unary reply: test message")
 
 test! "unary server error", -/>
   let err = null
+  client <- makeClient()
   try:
     <- client.unary({message: 'fail'})
   catch xerr:
@@ -38,6 +43,7 @@ test! "unary server error", -/>
   expect(err.details).toBe('failed call')
 
 test! "clientStream", -/>
+  client <- makeClient()
   gen = () -*/>
     yield { message: "hello " }
     yield { message: "world" }
@@ -46,6 +52,7 @@ test! "clientStream", -/>
   expect(resp.message).toBe("stream concatenated: hello world")
 
 test! 'clientStream client error', -/>
+  client <- makeClient()
   gen = () -*/>
     yield { message: "hello" }
     throw new Error("client error")
@@ -58,6 +65,7 @@ test! 'clientStream client error', -/>
     expect(err.message).toBe("client error")
 
 test! 'clientStream server error', -/>
+  client <- makeClient()
   gen = () -*/>
     yield { message: "hello" }
     yield { message: "fail" }
@@ -70,12 +78,14 @@ test! 'clientStream server error', -/>
     expect(err.details).toBe("failed call")
 
 test! "serverStream", -/>
+  client <- makeClient()
   stream <- client.serverStream({ message: "hello world" })
   let str = ''
   for await (packet of stream): now str += packet.message
   expect(str).toBe('server stream echo: hello world')
 
 test! "serverStream error", -/>
+  client <- makeClient()
   stream <- client.serverStream({ message: "fail" })
   try:
     let str = ''

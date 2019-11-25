@@ -2,6 +2,7 @@
 import { nonce } from './protocols/wkp'
 
 export { Protocols } from './Protocols'
+export { DynamicProtocols } from './DynamicProtocols'
 export { ClientEnhancer } from './ClientEnhancer'
 export { ServerEnhancer } from './ServerEnhancer'
 export { StreamHandler } from './StreamHandler'

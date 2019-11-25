@@ -1,5 +1,5 @@
 // Polyvalent grpc test server for unit testing
-import { Protocols, ServerEnhancer, StreamHandler, ServerCredentials } from '..'
+import { DynamicProtocols, ServerEnhancer, StreamHandler, ServerCredentials } from '..'
 
 grpc = require('@grpc/grpc-js')
 
@@ -59,19 +59,17 @@ export class TestServer:
     if protos:
       this.protos = protos
     else:
-      now protos = new Protocols()
-      protos.setProtoPath('test')
-      protos.require('test')
-      this.protos = protos
+      this.protos = new DynamicProtocols()
 
 
   start(port = 31337) -/>
     { bindings, EnhancerClass, protos } = this
-    protos.load()
+    protos.addProtoPath('test')
 
     server = new EnhancerClass(new grpc.Server())
     this.server = server
-    server.addService(protos.service("TestService"), bindings)
+    TestService <- protos.service("TestService")
+    server.addService(TestService, bindings)
 
     <- server.bind(`0.0.0.0:${port}`, ServerCredentials.createInsecure())
     server.start()

@@ -1,4 +1,5 @@
 import { createSerializer, createDeserializer } from './Serializer'
+import { channelFactoryOverride } from '../PathAwareChannel'
 
 grpc = require('@grpc/grpc-js')
 Protobuf = require("protobufjs")
@@ -43,6 +44,12 @@ export class ServiceDefinition:
     }
     this._service = pbjsService
     this.client = grpc.makeGenericClientConstructor(this.methods, fqn, {})
+
+  createClient(port, credentials, opts) ->
+    now opts = Object.assign({}, opts, {channelFactoryOverride})
+    if not credentials:
+      now credentials = grpc.credentials.createInsecure()
+    new this.client(port, credentials, opts)
 
 export createDefinition(pbjsObj, fqn, options) ->
   match pbjsObj:
