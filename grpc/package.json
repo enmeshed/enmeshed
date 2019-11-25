@@ -1,6 +1,6 @@
 {
   "name": "@enmeshed/grpc",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -29,10 +29,10 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^0.6.0",
+    "debug": "^4.1.1",
     "lodash.camelcase": "^4.3.0",
     "p-defer": "^3.0.0",
-    "protobufjs": "^6.8.8",
-    "debug": "^4.1.1"
+    "protobufjs": "^6.8.8"
   },
   "devDependencies": {
     "contexty": "^1.0.0",
