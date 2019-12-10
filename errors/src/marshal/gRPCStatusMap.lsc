@@ -1,0 +1,57 @@
+import { errors } from '../error/allErrors'
+
+export statusToCodeMap = {
+  OK: 0
+  CANCELLED: 1
+  UNKNOWN: 2
+  INVALID_ARGUMENT: 3
+  DEADLINE_EXCEEDED: 4
+  NOT_FOUND: 5
+  ALREADY_EXISTS: 6
+  PERMISSION_DENIED: 7
+  UNAUTHENTICATED: 16
+  RESOURCE_EXHAUSTED: 8
+  FAILED_PRECONDITION: 9
+  ABORTED: 10
+  OUT_OF_RANGE: 11
+  UNIMPLEMENTED: 12
+  INTERNAL: 13
+  UNAVAILABLE: 14
+  DATA_LOSS: 15
+}
+
+export codeToStatusMap = {...for key k, val v in statusToCodeMap:
+  {[v]: k}
+}
+
+export statusToErrorMap = {
+  "UNKNOWN": errors.UnknownError
+  "UNAUTHENTICATED": errors.UnauthenticatedError
+  "PERMISSION_DENIED": errors.PermissionDeniedError
+  "INVALID_ARGUMENT": errors.InvalidArgumentError
+  "FAILED_PRECONDITION": errors.FailedPreconditionError
+  "OUT_OF_RANGE": errors.OutOfRangeError
+  "ALREADY_EXISTS": errors.AlreadyExistsError
+  "NOT_FOUND": errors.NotFoundError
+  "ABORTED": errors.AbortedError
+  "CANCELLED": errors.CancelledError
+  "RESOURCE_EXHAUSTED": errors.ResourceExhaustedError
+  "DEADLINE_EXCEEDED": errors.TimeoutError
+  "UNAVAILABLE": errors.UnavailableError
+  "UNIMPLEMENTED": errors.UnimplementedError
+  "INTERNAL": errors.InternalError
+  "DATA_LOSS": errors.DataLossError
+}
+
+export codeToErrorMap = {...for key k, val v in statusToErrorMap:
+  {[statusToCodeMap[k]]: v}
+}
+
+export errorClassForStatus(status) ->
+  code = status?.code
+  ty = typeof(code)
+  if ty != 'string' and ty != 'number': return errors.UnmarshalledError
+  codeToErrorMap[code] or errors.UnmarshalledError
+
+export codeForStatusName(name) ->
+  statusToCodeMap[name or '']

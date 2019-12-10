@@ -1,0 +1,47 @@
+// Turn CommonErrors back and forth between plain JavaScript object
+// representations.
+import { details } from '../detail/allDetails'
+import { errors } from '../error/allErrors'
+
+export class PlainObjectMarshal:
+  marshalDetail(detail, productionCensorship) ->
+    if (not productionCensorship) or (detail.isProductionSafe):
+      {
+        detailClass: detail.name
+        fields: detail.toFields(productionCensorship)
+      }
+
+  unmarshalDetail(obj) ->
+    cons = details[obj?.detailClass or '']
+    if not cons: return null
+    detail = new cons()
+    detail.fromFields(obj.fields)
+    detail
+
+  marshalError(err, productionCensorship) ->
+    {
+      errorClass: err.name
+      message: err.message
+      ...if not productionCensorship: {stack: err.stack}
+      ...if err.cause:
+        {cause: this.marshalError(err.cause, productionCensorship)}
+      ...if err.details:
+        {details: [...for elem detail in err.details:
+          rst = this.marshalDetail(detail, productionCensorship)
+          if rst: [rst]
+        ]}
+    }
+
+  unmarshalError(obj) ->
+    cons = errors[obj?.errorClass or '']
+    if not cons: return null
+    err = new cons()
+    err.message = obj.message
+    if obj.stack: err.stack = obj.stack
+    if obj.cause: err.cause = this.unmarshalError(obj.cause)
+    if obj.details and Array.isArray(obj.details):
+      err.details = [...for elem detail in obj.details:
+        det = this.unmarshalDetail(detail)
+        if det: [det]
+      ]
+    err

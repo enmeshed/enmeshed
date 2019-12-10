@@ -1,4 +1,4 @@
-import { classifyMethod } from './util'
+import { classifyMethod } from '@enmeshed/protobuf'
 import { handleStream, StreamHandler } from './StreamHandler'
 import { ClientRequestContext } from './RequestContext'
 

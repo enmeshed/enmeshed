@@ -1,0 +1,28 @@
+import { errors, PlainObjectMarshal } from '..'
+
+marshal = new PlainObjectMarshal()
+
+test! 'it works', ->
+  err = new errors.CommonError("hello world")
+  console.error(err)
+  marsh = marshal.marshalError(err)
+  console.log(marsh)
+  err2 = marshal.unmarshalError(marsh)
+  console.error(err2)
+
+test! 'causality', ->
+  err = new errors.ResourceExhaustedError("disk","20Gb","10Gb")
+  err2 = new errors.CommonError("operation failed", err)
+  console.error(err2)
+  marsh = marshal.marshalError(err2)
+  console.log(marsh)
+  err3 = marshal.unmarshalError(marsh)
+  console.error(err3)
+
+test! 'ResourceExhaustedError', ->
+  err = new errors.ResourceExhaustedError("disk","20Gb","10Gb")
+  console.error(err)
+  marsh = marshal.marshalError(err)
+  console.log(marsh)
+  err2 = marshal.unmarshalError(marsh)
+  console.error(err2)

@@ -1,4 +1,4 @@
-import { classifyMethod } from './util'
+import { classifyMethod } from '@enmeshed/protobuf'
 import { handleStream } from './StreamHandler'
 import { ServerRequestContext } from './RequestContext'
 
@@ -10,7 +10,7 @@ class UnaryResponse {}
 // Dispatch node.js callback for a unary-style request
 dispatchNodeCallback(requestContext, callback) ->
   if requestContext.error:
-    callback(requestContext.error)
+    callback(requestContext.error, null, requestContext.error.metadata)
   else:
     { result } = requestContext
     if typeof(result) != 'object':

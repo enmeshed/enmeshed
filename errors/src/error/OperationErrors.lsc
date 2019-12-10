@@ -1,0 +1,81 @@
+import { CommonError } from './CommonError'
+import { QuotaFailure } from '../detail/GoogleErrorDetails'
+
+// OperationErrors are thrown when an operation could not be completed despite
+// proper preconditions.
+export class OperationError extends CommonError:
+  static className = "OperationError"
+  httpStatus = 500
+  gRPCStatus = "UNKNOWN"
+
+// The requested service was aborted. This usually refers to errors taking
+// place in an ongoing transaction where the transaction itself can be
+// retried after the abort.
+export class AbortedError extends OperationError:
+  static className = "AbortedError"
+  httpStatus = 409
+  gRPCStatus = "ABORTED"
+
+// The requested operation was cancelled during processing.
+export class CancelledError extends OperationError:
+  static className = "CancelledError"
+  httpStatus = 499
+  gRPCStatus = "CANCELLED"
+
+// While attempting to perform the requested operation, resources were exhausted.
+// Rate limits, disk/CPU, et cetera.
+export class ResourceExhaustedError extends OperationError:
+  static className = "ResourceExhaustedError"
+  httpStatus = 429
+  gRPCStatus = "RESOURCE_EXHAUSTED"
+
+  constructor(resourceName, usedAmount, quotaAmount, cause) ->
+    super(if usedAmount: `${resourceName}: used ${usedAmount} of ${quotaAmount}` else: `${resourceName}: quota exceeded`, cause)
+    if resourceName:
+      detail = new QuotaFailure()
+      if usedAmount:
+        detail.addViolation(resourceName, `used ${usedAmount} of ${quotaAmount}`)
+      else:
+        detail.addViolation(resourceName)
+      this.addDetail(detail)
+
+// Timeout while attempting to perform the operation.
+// This error does not necessarily indicate that the operation itself has failed.
+export class TimeoutError extends OperationError:
+  static className = "TimeoutError"
+  httpStatus = 504
+  gRPCStatus = "DEADLINE_EXCEEDED"
+
+  constructor(timeout, cause) ->
+    super(if timeout: `Operation timed out: ${timeout}` else: 'Operation timed out', cause)
+
+// The requested service is temporarily unavailable.
+export class UnavailableError extends OperationError:
+  static className = "UnavailableError"
+  httpStatus = 503
+  gRPCStatus = "UNAVAILABLE"
+
+// The requested service is unimplemented or disabled
+export class UnimplementedError extends OperationError:
+  static className = "UnimplementedError"
+  httpStatus = 501
+  gRPCStatus = "UNIMPLEMENTED"
+
+// The requested service had an internal failure.
+//
+// (This is generally reserved for serious events that may require operator
+// intervention.)
+export class InternalError extends OperationError:
+  static className = "InternalError"
+  httpStatus = 500
+  gRPCStatus = "INTERNAL"
+
+// The requested service had an internal failure due to data loss or
+// corruption.
+//
+// (This is generally reserved for serious events that may require operator
+// intervention.)
+export class DataLossError extends InternalError:
+  static className = "DataLossError"
+  httpStatus = 500
+  gRPCStatus = "DATA_LOSS"

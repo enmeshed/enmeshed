@@ -1,121 +1,18 @@
+import { DynamicProtocols as BaseDynamicProtocols } from '@enmeshed/protobuf'
 import { channelFactoryOverride } from './PathAwareChannel'
-import { Loader } from './protocols/Loader'
-import { at } from './Protocols'
-
 grpc = require('@grpc/grpc-js')
-debug = require('debug')('@enmeshed/grpc:DynamicProtocols')
 
-
-// Next-gen API that asynchronously and dynamically loads protocols as
-// requested by the application.
-export class DynamicProtocols:
-  loader = null
-  static defaultLoadOptions = {
-    keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
-  }
-  constructor() ->
-    this.loadOptions = Object.assign({}, this.constructor.defaultLoadOptions)
-    this.flush()
-
-  // Flush all loaded protocols
-  flush(): void ->
-    this.loader = new Loader(this.loadOptions)
-
-  setProtoPath(...includeDirs) ->
-    this.loader.includeDirs = includeDirs
-    this
-
-  addProtoPath(dir) ->
-    nextDirs = this.loader.includeDirs or []
-    nextDirs.push(dir)
-    this.loader.includeDirs = nextDirs
-    this
-
-  setLoadOptions(opts) ->
-    this.loadOptions = opts
-    this.flush()
-    this
-
-  _lookup(path) ->
-    try:
-      at(this.loader.tree, path)
-    catch err:
-      null
-
-  // Lookup a protocol object at the given path
-  lookup(path) ->
-    if typeof(path) == 'string':
-      now path = path.split('.')
-    this._lookup(path)
-
-  // Asynchronously load protocol files, failing if one of them doesn't exist.
-  require(...files) -/>
-    <- this.loader.load(files)
-    return
-
-  // Logic to determine which file to import when a protocol object cannot be
-  // found. By default, converts the fully qualified name directly to a path
-  // by adding slashes. Can be overridden for custom logic.
-  fileForProtocolName(n) ->
-    n.join('/') + '.proto'
-
-  // Asynchronously locate a sequence of protocol objects, possibly fetching them
-  // from the loader.
-  findAll(...paths) -/>
-    result = paths.map(-> null)
-    splitPaths = paths.map(x -> if typeof(x) == 'string': x.split('.') else: x)
-
-    // Do the best we can synchronously, tracking where we failed
-    failedLookups = [...for idx i, elem p in splitPaths:
-      resolved = this._lookup(p)
-      if resolved:
-        result[i] = resolved
-        continue
-      else:
-        [ [i, p] ]
-    ]
-
-    // Asynchronously load all failed paths
-    failedPaths = [...for elem [x, y] in failedLookups: [this.fileForProtocolName(y)]]
-    if failedPaths.length > 0:
-      debug("dynamically loading protocols", failedPaths)
-      <- this.loader.load(failedPaths)
-
-      // Now we should be able to lookup whatever we missed
-      for elem [idx, p] in failedLookups:
-        result[idx] = this._lookup(p)
-
-    result
-
-  // Retrieve the definition metadata for a given protocol name
-  definition(protoName) -/>
-    [ def ] <- this.findAll(protoName)
-    if not def:
-      throw new Error(`DynamicProtocols.def: no protocol ${protoName} could be loaded.`)
-    def
-
+export class DynamicProtocols extends BaseDynamicProtocols:
   // Create a gRPC client for the given named service
   client(protoName, port, credentials, opts) -/>
     [ def ] <- this.findAll(protoName)
     if not def:
       throw new Error(`DynamicProtocols.client: no protocol ${protoName} could be loaded.`)
+    if not def.client:
+      def.client = grpc.makeGenericClientConstructor(def.methods, def.name, {})
     if typeof(port) != 'undefined':
       now opts = Object.assign({}, opts, {channelFactoryOverride})
       if not credentials: now credentials = grpc.credentials.createInsecure()
       new def.client(port, credentials, opts)
     else:
       def.client
-
-  // Retrieve a gRPC service def for the given named service
-  service(protoName) -/>
-    [ def ] <- this.findAll(protoName)
-    if not def:
-      throw new Error(`DynamicProtocols.service: no protocol ${protoName} could be loaded.`)
-    def.methods
-
-  // Retrieve a gRPC type (message or enum) by fqn
-  type(typeName) -/>
-    [ def ] <- this.findAll(typeName)
-    if not def:
-      throw new Error(`DynamicProtocols.type: no protocol ${typeName} could be loaded.`)
-    def.getType()

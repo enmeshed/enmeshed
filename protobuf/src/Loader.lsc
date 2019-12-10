@@ -1,10 +1,10 @@
 import path from 'path'
 import fs from 'fs'
 
+import { Protobuf } from './protobuf'
 import { buildReflectionTree } from './Namespace'
 
-Protobuf = require("protobufjs")
-debug = require('debug')('@enmeshed/grpc:Loader')
+debug = require('debug')('@enmeshed/protobuf')
 
 export class Loader:
   // Currently loaded tree of protocol objects

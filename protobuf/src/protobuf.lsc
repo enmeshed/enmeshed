@@ -34,4 +34,8 @@ patchProtobuf(pb) ->
 // XXX: This might explode some third-party stuff, watch very carefully
 patchProtobuf(Protobuf)
 
+// Install pre-built protocols into Protobuf's global namespace
+export installGlobalProtocol(includeFile, data) ->
+  Protobuf.common(includeFile, data)
+
 export { Protobuf }

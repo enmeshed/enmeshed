@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package mesh;
+
+import "google/protobuf/struct.proto";
+import "google/rpc/status.proto";
+
+// Additional payload attached to a google.rpc.Status representing an error
+// marshalled from CommonErrors. This can be used to unmarshal the error on
+// the other side of a gRPC link.
+message MarshalledError {
+  // The CommonErrors class of the error.
+  string errorClass = 1;
+  // Stringified stack trace.
+  string stack = 2;
+  // A nested error allowing traceback along the causal chain.
+  google.rpc.Status cause = 3;
+  // Additional fields carrying error data; must be convertible to a JSON
+  // struct.
+  google.protobuf.Struct fields = 4;
+}

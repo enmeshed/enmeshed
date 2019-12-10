@@ -1,0 +1,41 @@
+// Information attached to an error pertaining to a particular detail of
+// the error.
+export class ErrorDetail:
+  // Quoted name of class. Used for serialization and to avoid mangling
+  // with certain minifiers
+  static className = "ErrorDetail"
+
+  // Does the ErrorDetail correspond to a well-known gRPC protobuf message?
+  // Note that if this is set, toFields() must return a compatible object.
+  static gRPCMessage = null
+
+  // Is the error detail safe to forward to end-user clients in production?
+  // If true, this error detail will be dropped when serializing the error
+  // in a production environment
+  isProductionSafe = false
+
+  constructor(message) ->
+    this.name = this.constructor.className
+    this.gRPCMessage = this.constructor.gRPCMessage
+    this.message = message
+
+  toString() ->
+    if this.message:
+      this.name + ": " + this.message
+    else:
+      this.name
+
+  clone() ->
+    next = new this.constructor()
+    next.fromFields(this.toFields())
+    next
+
+  // Convert to an object that can be converted by protobuf into a
+  // mesh.ErrorDetail
+  toFields(productionCensorship) -> {
+    message: this.message
+  }
+
+  // Set fields from an object of the shape produced by toFields().
+  fromFields(fields): void ->
+    if fields: this.message = fields.message

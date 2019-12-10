@@ -51,7 +51,9 @@
       "grpc",
       "node-control-plane",
       "mesh-reflection",
-      "mesh-reflection-file-watcher"
+      "mesh-reflection-file-watcher",
+      "errors",
+      "protobuf"
     ]
   }
 }

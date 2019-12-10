@@ -1,0 +1,97 @@
+import { ErrorDetail } from '../detail/ErrorDetail'
+import { RetryInfo } from '../detail/GoogleErrorDetails'
+
+// Base class for all common errors.
+export class CommonError extends Error:
+  // Quoted class name of this error. Prevents name mangling minifiers from
+  // defeating the error library.
+  static className = "CommonError"
+  // List of ErrorDetail objects specifying details of this error
+  details = undefined
+  // Another error object which caused this error.
+  cause = undefined
+  // HTTP protocol status associated with this error
+  httpStatus = 500
+  // gRPC status code enum (google.rpc.Code) associated with this error
+  gRPCStatus = "UNKNOWN"
+
+  constructor(message, cause) ->
+    super(message)
+    this.name = this.constructor.className
+    this.setCause(cause)
+
+  setCause(cause): CommonError ->
+    if cause~looseNotEq(null):
+      if not (cause instanceof Error):
+        throw new Error(`CommonError.setCause(): expected an Error, got ${cause}`)
+    this.cause = cause
+    this
+
+  // Full text dump of error info.
+  dump(): string ->
+    let result = this.stack
+
+    if this.details:
+      now result += `\n\nDetails\n--------\n`
+      for elem detail in this.details:
+        now result += `${detail.toString()}\n`
+
+    if this.cause:
+      now result += `\n\nCaused by:\n--------\n` + this.cause.dump()
+
+    result
+
+  addDetail(detail: ErrorDetail) ->
+    if not (detail instanceof ErrorDetail):
+      throw new Error(`CommonError.addDetail(): detail must be an ErrorDetail`)
+
+    this.details = this.details or []
+    this.details.push(detail)
+
+  // Locate error details by class or class name
+  getDetails(ty) ->
+    if not this.details: return []
+
+    matcher = if ty~looseEq(null):
+      -> true
+    elif typeof(ty) == "string":
+      x -> x.name == ty
+    else:
+      now ty = ty.className
+      x -> x.name == ty
+
+    this.details.filter(matcher)
+
+  // Locate a single error detail by class or class name
+  getDetail(ty) ->
+    res = this.getDetails(ty)
+    if res.length: res[0] else: null
+
+  // If the error can be retried, return information about the retry options.
+  // NULL if error is not retriable.
+  get retry() ->
+    return this.getDetail(RetryInfo)
+
+  // Set retry information for the error
+  setRetryDelay(sec, ns): CommonError ->
+    this.addDetail(new RetryInfo(sec, ns))
+    this
+
+  // Additional fields associated with the error. Must be null or a plain JS
+  // object.
+  toFields(productionCensorship) -> null
+
+  // Hydrate this Error object with data returned from toFields.
+  fromFields(fields): void -> return
+
+export class UnknownError extends CommonError:
+  static className = "UnknownError"
+  httpStatus = 500
+  gRPCStatus = "UNKNOWN"
+
+// If an error is transported over the wire but we are unable to deserialize
+// it properly, this error will be thrown instead.
+export class UnmarshalledError extends UnknownError:
+  static className = "UnmarshalledError"
+  httpStatus = 500
+  gRPCStatus = "UNKNOWN"

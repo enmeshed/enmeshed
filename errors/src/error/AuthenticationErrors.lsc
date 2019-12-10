@@ -1,0 +1,18 @@
+import { CommonError } from './CommonError'
+
+export class AuthenticationError extends CommonError:
+  static className = "AuthenticationError"
+  httpStatus = 500
+  gRPCStatus = "UNKNOWN"
+
+// The user is not logged in or authenticated properly.
+export class UnauthenticatedError extends AuthenticationError:
+  static className = "UnauthenticatedError"
+  httpStatus = 401
+  gRPCStatus = "UNAUTHENTICATED"
+
+// Access to a particular resource is denied.
+export class PermissionDeniedError extends AuthenticationError:
+  static className = "PermissionDeniedError"
+  httpStatus = 403
+  gRPCStatus = "PERMISSION_DENIED"

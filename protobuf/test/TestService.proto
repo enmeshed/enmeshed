@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+// Test ability to import Google well known types
+import "google/protobuf/source_context.proto";
+
+service TestService {
+  rpc unary(TestMessage) returns (TestMessage);
+  rpc clientStream(stream TestMessage) returns (TestMessage);
+  rpc serverStream(TestMessage) returns (stream TestMessage);
+  rpc bidiStream(stream TestMessage) returns (stream TestMessage);
+}
+
+message TestMessage {
+  string message = 1;
+  google.protobuf.SourceContext file = 2;
+}

@@ -1,6 +1,5 @@
 import { createDefinition } from './Definition'
-
-Protobuf = require("protobufjs")
+import { Protobuf } from './protobuf'
 
 isReflectionObject(obj) ->
   obj instanceof Protobuf.Service

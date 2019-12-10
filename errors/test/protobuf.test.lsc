@@ -1,0 +1,16 @@
+import { errors, ProtobufMarshal } from '..'
+import { DynamicProtocols, installGlobalProtocol } from '@enmeshed/protobuf'
+
+ProtobufMarshal.installProtos(installGlobalProtocol)
+protos = new DynamicProtocols()
+marshal = new ProtobufMarshal(protos)
+
+test! 'causality', ->
+  debugger
+  err = new errors.ResourceExhaustedError("disk","20Gb","10Gb")
+  err2 = new errors.CommonError("operation failed", err).setRetryDelay(1)
+  console.error(err2)
+  marsh = marshal.marshalError(err2)
+  console.log(marsh)
+  err3 = marshal.unmarshalError(marsh)
+  console.error(err3)

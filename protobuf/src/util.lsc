@@ -1,0 +1,80 @@
+deferred = require('p-defer')
+
+// Classify a method on a grpc Method object
+export classifyMethod(method): string ->
+  { requestStream, responseStream } = method
+
+  if (not requestStream) and (not responseStream):
+    'unary'
+  elif requestStream and (not responseStream):
+    'requestStream'
+  elif (not requestStream) and responseStream:
+    'responseStream'
+  elif requestStream and responseStream:
+    'bidirectionalStream'
+  else:
+    throw new Error('classifyMethod: unrecognized method')
+
+export isThenable(thing): bool ->
+  ty = typeof(thing)
+  thing and (ty == 'object' or ty == 'function') and (typeof(thing.then) == 'function')
+
+export { deferred }
+
+// Convert a google protobuf struct to plain JSON
+export structToJson(protoStruct, recurse = true) ->
+  {...for key k, val protoVal in protoStruct.fields:
+    {[k]: valToJson(protoVal, recurse)}
+  }
+
+listToJson(protoList) ->
+  [...for elem protoVal in protoList.values: [valToJson(protoVal)]]
+
+valToJson(protoVal, recurse) ->
+  if 'nullValue' in protoVal:
+    null
+  elif 'numberValue' in protoVal:
+    protoVal.numberValue
+  elif 'stringValue' in protoVal:
+    protoVal.stringValue
+  elif 'boolValue' in protoVal:
+    protoVal.boolValue
+  elif protoVal.structValue:
+    if recurse:
+      structToJson(protoVal.structValue)
+    else:
+      protoVal.structValue
+  elif protoVal.listValue:
+    listToJson(protoVal.listValue)
+  else:
+    undefined
+
+export jsonToStruct(json) ->
+  {
+    fields: {...for key k, val v in json: {[k]: jsonToVal(v)}}
+  }
+
+jsonToList(ary) ->
+  {
+    values: [...for elem v in ary: [jsonToVal(v)]]
+  }
+
+jsonToVal(v) ->
+  match typeof(v):
+    | 'object':
+      if v == null:
+        { kind: 'nullValue', nullValue: 0 }
+      elif Array.isArray(v):
+        { kind: 'listValue', listValue: jsonToList(v) }
+      else:
+        { kind: 'structValue', structValue: jsonToStruct(v) }
+    | 'boolean':
+      { kind: 'boolValue', boolValue: v }
+    | 'number':
+      { kind: 'numberValue', numberValue: v }
+    | 'string':
+      { kind: 'stringValue', stringValue: v }
+    | 'undefined':
+      { kind: 'nullValue', nullValue: 0 }
+    | else:
+      throw new Error("couldn't encode json to protobuf; invalid field type")

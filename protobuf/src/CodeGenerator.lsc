@@ -1,0 +1,33 @@
+import { Protobuf } from './protobuf'
+
+export class CodeGenerator:
+  static defaultOptions = {
+    exportedFunction: 'installProtos'
+  }
+
+  constructor(options = {}) ->
+    this.options = Object.assign({}, this.constructor.defaultOptions, options)
+    this.begin()
+
+  begin() ->
+    this.code = `
+// Install precompiled protocols into Protobuf database.
+// THIS FILE IS AUTO-GENERATED
+
+export function ${this.options.exportedFunction}(loader) {
+`
+
+  addDefinition(importName, def) ->
+    this.code += `
+  loader(${JSON.stringify(importName)},${JSON.stringify(def)})
+`
+    this
+
+  static loadFile(name) ->
+    Protobuf.loadSync(name).toJSON()
+
+  finish() ->
+    this.code += `
+}
+`
+    this.code

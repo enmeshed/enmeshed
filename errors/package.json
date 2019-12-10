@@ -1,11 +1,11 @@
 {
-  "name": "@enmeshed/grpc",
-  "version": "0.2.0",
+  "name": "@enmeshed/errors",
+  "version": "0.1.0",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Utilities for building Node GRPC services.",
+  "description": "Common error classes descending from native JS Error.",
   "main": "lib/index.js",
   "files": [
     "lib"
@@ -28,15 +28,11 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^0.6.0",
-    "@enmeshed/protobuf": "^0.2.0",
-    "debug": "^4.1.1",
-    "p-defer": "^3.0.0"
   },
   "devDependencies": {
-    "contexty": "^1.0.0",
-    "cuid": "^2.1.6",
-    "npm-run-all": "^4.1.5"
+    "npm-run-all": "^4.1.5",
+    "@enmeshed/protobuf": "^0.2.0",
+    "jest": "^24.8.0"
   },
   "jest": {
     "testEnvironment": "node",

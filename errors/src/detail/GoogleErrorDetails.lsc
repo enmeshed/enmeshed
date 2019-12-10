@@ -1,0 +1,170 @@
+import { ErrorDetail } from './ErrorDetail'
+
+// Information about how long a client should wait before retrying a retriable
+// operation.
+export class RetryInfo extends ErrorDetail:
+  static className = "RetryInfo"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.RetryInfo"
+
+  constructor(seconds = 0, nanos = 0) ->
+    super()
+    this.fromFields({retryDelay:{seconds, nanos}})
+
+  toFields() -> {
+    retryDelay: {
+      seconds: this.seconds
+      nanos: this.nanos
+    }
+  }
+
+  fromFields(fields): void ->
+    this.seconds = fields?.retryDelay?.seconds or 0
+    this.nanos = fields?.retryDelay?.nanos or 0
+    this.message = "retry in " + this.seconds + "s " + this.nanos + "ns"
+
+export class PreconditionFailure extends ErrorDetail:
+  static className = "PreconditionFailure"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.PreconditionFailure"
+  violations = []
+
+  constructor() ->
+    super(`PreconditionFailure`)
+
+  // type:
+  // The type of PreconditionFailure. We recommend using a service-specific
+  // enum type to define the supported precondition violation types. For
+  // example, "TOS" for "Terms of Service violation".
+  //
+  // subject:
+  // The subject, relative to the type, that failed.
+  // For example, "google.com/cloud" relative to the "TOS" type would
+  // indicate which terms of service is being referenced.
+  //
+  // description:
+  // A description of how the precondition failed. Developers can use this
+  // description to understand how to fix the failure.
+  //
+  // For example: "Terms of service not accepted".
+  addViolation(type, subject, description) ->
+    this.violations.push({type, subject, description})
+    this
+
+  toFields() -> {
+    violations: this.violations
+  }
+
+  fromFields(fields) ->
+    this.violations = fields?.violations or []
+
+export class BadRequest extends ErrorDetail:
+  static className = "BadRequest"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.BadRequest"
+  violations = []
+
+  addViolation(field, description) ->
+    this.violations.push({field, description})
+    this
+
+  toFields() -> {
+    violations: this.violations
+  }
+
+  fromFields(fields): void ->
+    this.violations = fields?.violations or []
+
+export class QuotaFailure extends ErrorDetail:
+  static className = "QuotaFailure"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.QuotaFailure"
+  violations = []
+
+  constructor() ->
+    super("QuotaFailure")
+
+  addViolation(subject, description) ->
+    this.violations.push({subject, description})
+
+  toFields() -> {
+      violations: this.violations
+  }
+
+  fromFields(fields): void ->
+    this.violations = fields?.violations or []
+
+export class RequestInfo extends ErrorDetail:
+  static className = "RequestInfo"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.RequestInfo"
+
+  constructor(requestId, servingData) ->
+    super()
+    this.fromFields({requestId, servingData})
+
+  toFields() -> {
+    requestId: this.requestId
+    servingData: this.servingData
+  }
+
+  fromFields(fields): void ->
+    if fields: Object.assign(this, fields)
+    this.message = `requestId: ${this.requestId}`
+
+export class ResourceInfo extends ErrorDetail:
+  static className = "ResourceInfo"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.ResourceInfo"
+
+  constructor(resourceType, resourceName, owner, description) ->
+    super()
+    this.fromFields({resourceType, resourceName, owner, description})
+
+  toFields() -> {
+    resourceName: this.resourceName
+    resourceType: this.resourceType
+    owner: this.owner
+    description: this.description
+  }
+
+  fromFields(fields): void ->
+    if fields: Object.assign(this, fields)
+    this.message = `${this.resourceName} of type ${this.resourceType} owned by ${this.owner}: ${this.description}`
+
+export class HelpLinks extends ErrorDetail:
+  static className = "HelpLinks"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.Help"
+
+  constructor() ->
+    super()
+    this.links = []
+
+  addLink(description, url) ->
+    this.links.push({description, url})
+
+  toFields() -> { links: this.links }
+
+  fromFields(fields): void ->
+    if fields: this.links = fields.links or []
+    this.message = ''
+    for elem link in this.links: this.message += `\nHelpLink: ${link.description}: ${link.url}`
+
+// User-friendly localized error messages.
+export class LocalizedMessage extends ErrorDetail:
+  static className = "LocalizedMessage"
+  isProductionSafe = true
+  static gRPCMessage = "google.rpc.LocalizedMessage"
+
+  constructor(message = '', locale='en-US') ->
+    super()
+    this.fromFields({message, locale})
+
+  toFields() -> {
+    message: this.message
+    locale: this.locale
+  }
+
+  fromFields(fields): void ->
+    if fields: Object.assign(this, fields)

@@ -1,0 +1,85 @@
+import path from 'path'
+import fs from 'fs'
+import { Protobuf } from './protobuf'
+import { Loader } from './Loader'
+
+export at(obj, path) ->
+  let ret = obj
+  for elem e in path:
+    now ret = ret[e]
+  ret
+
+export class Protocols:
+  _loader = null
+  _loaded = false
+  _root = null
+  _includeDirs = []
+  _files = []
+  _pkgs = null
+  loadOptions = {
+    keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
+  }
+
+  setProtoPath(...includeDirs) ->
+    this._includeDirs = includeDirs
+    this
+
+  addProtoPath(dir) ->
+    this._includeDirs.push(dir)
+    this
+
+  findGrpcPackage(path) ->
+    try:
+      at(this._pkgs, path)
+    catch err:
+      null
+
+  serviceDefinition(protoName) ->
+    pth = protoName.split('.')
+    def = this.findGrpcPackage(pth)
+    if not def:
+      throw new Error(`Protocols.client: no protocol ${protoName} was loaded.`)
+    def
+
+  // Retrieve a gRPC service def for the given named service
+  service(protoName) ->
+    pth = protoName.split('.')
+    def = this.findGrpcPackage(pth)
+    if not def:
+      throw new Error(`Protocols.service: no protocol ${protoName} was loaded.`)
+    def.methods
+
+  type(typeName) ->
+    pth = typeName.split('.')
+    def = this.findGrpcPackage(pth)
+    if not def:
+      throw new Error(`Protocols.service: no protocol ${typeName} was loaded.`)
+    def.getType()
+
+  require(protoFile): void ->
+    if this._loaded:
+      throw new Error(`Protocols.require: cannot call require() after protocols are already loaded.`)
+    fileName = `${protoFile}.proto`
+
+    // Resolve as a common include
+    if Protobuf.common.get(fileName):
+      this._files.push(fileName)
+      return
+
+    // Resolve the proto package in the include dirs
+    for elem dir in this._includeDirs:
+      target = path.resolve(dir, fileName)
+      if fs.existsSync(target):
+        this._files.push(target)
+        return // first match wins
+    // File not found
+    throw new Error(`Protocols.require: could not find protocol file matching '${fileName}' in include path.`)
+
+  load(): void ->
+    if this._loaded: return
+    opts = Object.assign({}, this.loadOptions)
+    this._loader = new Loader(opts)
+    this._loader.includeDirs = this._includeDirs
+    if this._files.length > 0:
+      this._loader._loadSync(this._files)
+    this._pkgs = this._loader.tree

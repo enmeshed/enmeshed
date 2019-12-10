@@ -1,4 +1,4 @@
-import { reportOOBError } from '../OOBErrorHandler'
+import { reportOOBError } from './OOBErrorHandler'
 
 export createDeserializer(cls, options) ->
   deserialize(argBuf) ->

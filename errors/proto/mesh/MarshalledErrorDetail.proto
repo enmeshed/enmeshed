@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package mesh;
+
+import "google/protobuf/struct.proto";
+
+// A marshalled ErrorDetail that does not correspond to one of the standard
+// google.rpc error_Details.
+message MarshalledErrorDetail {
+  // The CommonErrors class of the errorDetail.
+  string errorDetailClass = 1;
+  // Additional fields carrying error data; must be convertible to a JSON
+  // struct.
+  google.protobuf.Struct fields = 4;
+}

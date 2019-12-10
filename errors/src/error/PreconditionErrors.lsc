@@ -1,0 +1,71 @@
+import { CommonError } from './CommonError'
+import { BadRequest, PreconditionFailure, ResourceInfo } from '../detail/GoogleErrorDetails'
+
+// An error relating to preconditions for a request, such as valid arguments,
+// correct system state, etc.
+export class PreconditionError extends CommonError:
+  static className = "PreconditionError"
+  httpStatus = 500
+  gRPCStatus = "UNKNOWN"
+
+// An invalid or missing argument was supplied
+export class InvalidArgumentError extends PreconditionError:
+  static className = "InvalidArgumentError"
+  httpStatus = 400
+  gRPCStatus = "INVALID_ARGUMENT"
+
+  constructor(argument, reason, cause) ->
+    super(`${argument}: ${reason}`, cause)
+    if argument:
+      this.addDetail((new BadRequest()).addViolation(argument, reason))
+
+// A precondition related to system state was not satisfied.
+export class FailedPreconditionError extends PreconditionError:
+  static className = "FailedPreconditionError"
+  httpStatus = 400
+  gRPCStatus = "FAILED_PRECONDITION"
+
+  constructor(type, subject, description, cause) ->
+    super(`${type} ${subject}: ${description}`, cause)
+    if type:
+      this.addDetail((new PreconditionFailure()).addViolation(type, subject, description))
+
+// Indicates that a specific argument was out of the valid range.
+export class OutOfRangeError extends FailedPreconditionError:
+  static className = "OutOfRangeError"
+  httpStatus = 400
+  gRPCStatus = "OUT_OF_RANGE"
+
+  constructor(argument, reason, cause) ->
+    super(`${argument}: ${reason}`, cause)
+    if argument:
+      this.addDetail((new BadRequest()).addViolation(argument, reason))
+
+// Indicates that an object the user is trying to create already exists
+// in the system state
+export class AlreadyExistsError extends FailedPreconditionError:
+  static className = "AlreadyExistsError"
+  httpStatus = 409
+  gRPCStatus = "ALREADY_EXISTS"
+
+  constructor(entityType, identifyingInfo, description, owner, cause) ->
+    super(`${entityType} ${identifyingInfo}: ${description or 'already exists'}`, cause)
+    if entityType:
+      this.addDetail(new ResourceInfo(entityType, identifyingInfo, owner, description))
+
+// Indicates that an object the user is trying to operate on does not exist
+// in the system state.
+//
+// Note that this should only be thrown for instances where the object is
+// expected to exist. For a search query scenario in which the object may
+// or may not exist, an empty result set should be returned rather than
+// throwing an error.
+export class NotFoundError extends FailedPreconditionError:
+  static className = "NotFoundError"
+  httpStatus = 404
+  gRPCStatus = "NOT_FOUND"
+
+  constructor(entityType, identifyingInfo, description, cause) ->
+    super(`${entityType} ${identifyingInfo}: ${description or 'already exists'}`, cause)
+    if entityType:
+      this.addDetail(new ResourceInfo(entityType, identifyingInfo, null, description))

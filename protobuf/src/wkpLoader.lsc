@@ -1,0 +1,5 @@
+// Global Well-known protocol installer.
+import { installProtos } from './wkp'
+import { installGlobalProtocol } from './protobuf'
+
+installProtos(installGlobalProtocol)

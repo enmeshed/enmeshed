@@ -1,0 +1,196 @@
+// Turn CommonErrors back and forth between Protobuf (google.rpc.Status)
+// representations.
+import { details as detailClasses, getDetailForMessageType } from '../detail/allDetails'
+import { CommonError } from '../error/CommonError'
+import { ErrorDetail } from '../detail/ErrorDetail'
+import { errors } from '../error/allErrors'
+import { errorClassForStatus, codeForStatusName } from './gRPCStatusMap'
+import { installProtos } from '../wkp'
+
+cleanupTypename(typeName) ->
+  if (typeof(typeName) == 'string') and (typeName.charAt(0) == '.'):
+    typeName.substr(1)
+  else:
+    typeName
+
+export class ProtobufMarshal:
+  static installProtos(loader): void ->
+    installProtos(loader)
+
+  constructor(protobufAPI) ->
+    // Load initial protocols
+    protobufAPI.loader._loadSync([
+      "google/protobuf/any.proto"
+      "google/protobuf/duration.proto"
+      "google/protobuf/struct.proto"
+      "google/rpc/code.proto"
+      "google/rpc/error_details.proto"
+      "google/rpc/status.proto"
+      "mesh/MarshalledError.proto"
+      "mesh/MarshalledErrorDetail.proto"
+    ])
+
+    this.protos = protobufAPI
+    this.Any = this.protos.typeSync("google.protobuf.Any")
+
+  encode(typeName, data) ->
+    type = this.protos.typeSync(typeName)
+    type.create(data)
+
+  encodeAny(typeName, data) ->
+    type = this.protos.typeSync(typeName)
+    this.Any.create({
+      type_url: `type.googleapis.com/${typeName}`
+      value: type.encode(data).finish()
+    })
+
+  decodeAny(data) ->
+    // XXX: Better checks here
+    if (typeof(data?.type_url) != 'string') or (not data?.value): return data
+    typeName = data.type_url.substring(data.type_url.lastIndexOf("/") + 1)
+    type = this.protos.typeSync(typeName)
+    if not type: return data
+    type.decode(data.value)
+
+  marshalDetail(detail, productionCensorship) ->
+    if not (detail instanceof ErrorDetail): return null
+    if productionCensorship and (not detail.isProductionSafe): return null
+
+    if detail.gRPCMessage:
+      this.encodeAny(detail.gRPCMessage, detail.toFields(productionCensorship))
+    elif detail.name:
+      this.encodeAny("mesh.MarshalledErrorDetail", {
+        errorDetailClass: detail.name
+        fields: detail.toFields()
+      })
+    else:
+      null
+
+  marshalUnknownError(err, productionCensorship) ->
+    def = {
+      code: 2
+      message: err?.message or 'Unknown error'
+    }
+    this.encode("google.rpc.Status", def)
+
+  marshalError(err, productionCensorship) ->
+    // Create a google.rpc.Status object from the given error
+    code = codeForStatusName(err?.gRPCStatus)
+    if not code:
+      this.marshalUnknownError(err, productionCensorship)
+
+    def = {
+      code
+      message: err.message
+    }
+
+    details = [...for elem detail in (err.details or []):
+      rst = this.marshalDetail(detail, productionCensorship)
+      if rst: [rst]
+    ]
+
+    // IF the error is a CommonError, append a MarshalledError detail.
+    if err instanceof CommonError:
+      fields = err.toFields()
+      details.push(this.encodeAny("mesh.MarshalledError", {
+        errorClass: err.name
+        ...if not productionCensorship: { stack: err.stack }
+        ...if err.cause:
+          { cause: this.marshalError(err.cause, productionCensorship) }
+        ...if fields: { fields }
+      }))
+
+    if details.length: def.details = details
+
+    this.encode("google.rpc.Status", def)
+
+  unmarshalGenericDetail(obj) ->
+    cons = detailClasses[obj?.errorDetailClass or '']
+    if not cons: return null
+    detail = new cons()
+    if obj.fields: detail.fromFields(obj.fields)
+    detail
+
+  unmarshalTypedDetail(obj, detailClass) ->
+    detail = new detailClass()
+    detail.fromFields(obj)
+    detail
+
+  // Unmarshal an ErrorDetail object.
+  unmarshalDetail(obj) ->
+    // Detail may be marshaled as an .Any, try to decode it.
+    now obj = this.decodeAny(obj)
+
+    typeName = cleanupTypename(obj?.$type?.fullName)
+    console.log("unmarshalDetail of type", typeName)
+
+    // Is it a mesh.MarshalledErrorDetail:
+    if typeName == 'mesh.MarshalledErrorDetail':
+      return this.unmarshalGenericDetail(obj)
+
+    // Is it one of the known gRPC detail types?
+    detailClass = getDetailForMessageType(typeName)
+    if detailClass: return this.unmarshalTypedDetail(obj, detailClass)
+
+    // Unknown type, discard.
+    null
+
+  // Unmarshal a gRPC Status object that doesn't have a known error class.
+  unmarshalUnknownError(obj, unmarshalledDetails) ->
+    errorClass = errorClassForStatus(obj)
+    error = new errorClass()
+    error.message = obj?.message or 'Unknown error'
+    if unmarshalledDetails:
+      for elem detail in unmarshalledDetails:
+        error.addDetail(detail)
+    elif Array.isArray(obj?.details):
+      for elem detail in obj.details:
+        unmarshalled = this.unmarshalDetail(detail)
+        if unmarshalled: error.addDetail(unmarshalled)
+    error
+
+  // Unmarshal a gRPC Status object.
+  unmarshalError(obj) ->
+    // Early-out cases
+    // Not an object
+    if typeof(obj) != 'object': return this.unmarshalUnknownError(obj)
+    // Status was OK, no error
+    // XXX: think about this, we should probably return an unknown error here?
+    if obj.code == 0: return null
+    // Status was not provided
+    if not obj.code: return this.unmarshalUnknownError(obj)
+
+    // No details were provided. In this case, unmarshal as an unknown
+    // error.
+    if (not Array.isArray(obj.details)) or (obj.details.length == 0):
+      return this.unmarshalUnknownError(obj)
+
+    // Search the details for a MarshalledError packet.
+    nextDetails = []
+    let marshalDetail = null
+    for elem mdet in obj.details:
+      detail = this.decodeAny(mdet)
+      typeName = cleanupTypename(detail?.$type?.fullName)
+      if typeName == "mesh.MarshalledError":
+        now marshalDetail = detail
+      else:
+        umDet = this.unmarshalDetail(detail)
+        if umDet: nextDetails.push(umDet)
+
+    // Try to unmarshal the error using the correct class.
+    if not marshalDetail: return this.unmarshalUnknownError(obj, nextDetails)
+    cons = errors[marshalDetail.errorClass or '']
+    if not cons: return this.unmarshalUnknownError(obj, nextDetails)
+
+    err = new cons()
+    err.message = obj.message
+    if marshalDetail.stack:
+      err.stack = marshalDetail.stack
+    if marshalDetail.cause:
+      err.setCause(this.unmarshalError(marshalDetail.cause))
+    if marshalDetail.fields:
+      err.fromFields(marshalDetail.fields)
+    for elem detail in nextDetails:
+      err.addDetail(detail)
+
+    err
