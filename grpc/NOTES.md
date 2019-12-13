@@ -76,6 +76,9 @@ properties, these are used in the sent Status.
 If there is an error writing the response, a Status with INTERNAL code is sent
 to the client.
 
+When marshalling an error, set the { code, details } props on the
+error object appropriately and pass metadata. Metadata should be a grpc.Metadata.
+
 Unary processing starts here:
 ```js
 async function handleUnary(call, handler, metadata) {

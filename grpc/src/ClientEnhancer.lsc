@@ -62,6 +62,7 @@ wrapRequestStreamMethod(clientEnhancer, methodName, method, context) ->
       callFailed(localError, remoteError): void ->
         if remoteError: now remoteError = clientEnhancer.unmarshalError(remoteError)
         err = localError or remoteError
+        // XXX: Investigate error model, should we propagate client error?
         if localError: stream.cancel()
         if err: requestContext.error = err
         clientEnhancer.requestDidEnd(requestContext)
