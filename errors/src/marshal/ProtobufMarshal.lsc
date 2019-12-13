@@ -4,8 +4,10 @@ import { details as detailClasses, getDetailForMessageType } from '../detail/all
 import { CommonError } from '../error/CommonError'
 import { ErrorDetail } from '../detail/ErrorDetail'
 import { errors } from '../error/allErrors'
-import { errorClassForStatus, codeForStatusName } from './gRPCStatusMap'
+import { errorClassForStatus } from './gRPCStatusMap'
 import { installProtos } from '../wkp'
+
+isBuffer = require('is-buffer')
 
 cleanupTypename(typeName) ->
   if (typeof(typeName) == 'string') and (typeName.charAt(0) == '.'):
@@ -32,6 +34,7 @@ export class ProtobufMarshal:
 
     this.protos = protobufAPI
     this.Any = this.protos.typeSync("google.protobuf.Any")
+    this.Status = this.protos.typeSync("google.rpc.Status")
 
   encode(typeName, data) ->
     type = this.protos.typeSync(typeName)
@@ -52,6 +55,12 @@ export class ProtobufMarshal:
     if not type: return data
     type.decode(data.value)
 
+  statusToBuffer(status) ->
+    this.Status.encode(status).finish()
+
+  bufferToStatus(buffer) ->
+    try: this.Status.decode(buffer) catch: null
+
   marshalDetail(detail, productionCensorship) ->
     if not (detail instanceof ErrorDetail): return null
     if productionCensorship and (not detail.isProductionSafe): return null
@@ -71,11 +80,11 @@ export class ProtobufMarshal:
       code: 2
       message: err?.message or 'Unknown error'
     }
-    this.encode("google.rpc.Status", def)
+    this.Status.create(def)
 
   marshalError(err, productionCensorship) ->
     // Create a google.rpc.Status object from the given error
-    code = codeForStatusName(err?.gRPCStatus)
+    code = if err.getStatusCode: err.getStatusCode()
     if not code:
       this.marshalUnknownError(err, productionCensorship)
 
@@ -102,7 +111,7 @@ export class ProtobufMarshal:
 
     if details.length: def.details = details
 
-    this.encode("google.rpc.Status", def)
+    this.Status.create(def)
 
   unmarshalGenericDetail(obj) ->
     cons = detailClasses[obj?.errorDetailClass or '']
@@ -151,9 +160,13 @@ export class ProtobufMarshal:
 
   // Unmarshal a gRPC Status object.
   unmarshalError(obj) ->
+    // Handle encoded buffers
+    if isBuffer(obj):
+      now obj = this.bufferToStatus(obj)
+
     // Early-out cases
-    // Not an object
-    if typeof(obj) != 'object': return this.unmarshalUnknownError(obj)
+    // Not an object, does not correspond to an error.
+    if typeof(obj) != 'object': return null
     // Status was OK, no error
     // XXX: think about this, we should probably return an unknown error here?
     if obj.code == 0: return null
