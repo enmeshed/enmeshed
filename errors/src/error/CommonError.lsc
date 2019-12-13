@@ -1,5 +1,6 @@
 import { ErrorDetail } from '../detail/ErrorDetail'
 import { RetryInfo } from '../detail/GoogleErrorDetails'
+import { codeForStatusName } from './statusCodeMap'
 
 // Base class for all common errors.
 export class CommonError extends Error:
@@ -83,6 +84,14 @@ export class CommonError extends Error:
 
   // Hydrate this Error object with data returned from toFields.
   fromFields(fields): void -> return
+
+  // Get the gRPC status string for this error
+  getStatusName(): string ->
+    this.gRPCStatus or "UNKNOWN"
+
+  // Get the gRPC status code (integer) for this error
+  getStatusCode(): number ->
+    codeForStatusName(this.gRPCStatus)
 
 export class UnknownError extends CommonError:
   static className = "UnknownError"

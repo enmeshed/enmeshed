@@ -1,8 +1,13 @@
 import { errors, registerErrorClass } from './error/allErrors'
 import { details, registerErrorDetailClass } from './detail/allDetails'
 
+export { CommonError } from './error/CommonError'
+
+export { codeForStatusName, statusNameForCode } from './error/statusCodeMap'
+
 export { PlainObjectMarshal } from './marshal/PlainObjectMarshal'
 export { ProtobufMarshal } from './marshal/ProtobufMarshal'
+export { errorClassForCode } from './marshal/gRPCStatusMap'
 
 export { errors, registerErrorClass, details, registerErrorDetailClass }
 export default errors
