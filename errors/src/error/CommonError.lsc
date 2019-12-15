@@ -2,6 +2,12 @@ import { ErrorDetail } from '../detail/ErrorDetail'
 import { RetryInfo } from '../detail/GoogleErrorDetails'
 import { codeForStatusName } from './statusCodeMap'
 
+dumpError(err): string ->
+  if typeof(err?.dump) == 'function':
+    err.dump()
+  else:
+    err?.stack or ''
+
 // Base class for all common errors.
 export class CommonError extends Error:
   // Quoted class name of this error. Prevents name mangling minifiers from
@@ -38,7 +44,7 @@ export class CommonError extends Error:
         now result += `${detail.toString()}\n`
 
     if this.cause:
-      now result += `\n\nCaused by:\n--------\n` + this.cause.dump()
+      now result += `\n\nCaused by:\n--------\n` + dumpError(this.cause)
 
     result
 
@@ -75,7 +81,12 @@ export class CommonError extends Error:
 
   // Set retry information for the error
   setRetryDelay(sec, ns): CommonError ->
-    this.addDetail(new RetryInfo(sec, ns))
+    det = this.getDetail(RetryInfo)
+    if det:
+      // XXX: set delay.
+      return this
+    else:
+      this.addDetail(new RetryInfo(sec, ns))
     this
 
   // Additional fields associated with the error. Must be null or a plain JS
