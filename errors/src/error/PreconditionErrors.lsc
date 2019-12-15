@@ -66,6 +66,6 @@ export class NotFoundError extends FailedPreconditionError:
   gRPCStatus = "NOT_FOUND"
 
   constructor(entityType, identifyingInfo, description, cause) ->
-    super(`${entityType} ${identifyingInfo}: ${description or 'already exists'}`, cause)
+    super(`${entityType} ${identifyingInfo}: ${description or 'not found'}`, cause)
     if entityType:
       this.addDetail(new ResourceInfo(entityType, identifyingInfo, null, description))
