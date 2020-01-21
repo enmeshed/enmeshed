@@ -8,9 +8,10 @@ export toResource(x) -> x
 export getDependencyNode(rsrc) ->
   rsrc[dependencyNode$]
 
-export setDependencyNode(rsrc, node): void ->
+export setDependencyNode(rsrc, node, provider): void ->
   rsrc[dependencyNode$] = node
   node.resource = rsrc
+  node.provider = provider
 
 export getDestructor(rsrc) ->
   rsrc[destroy$]

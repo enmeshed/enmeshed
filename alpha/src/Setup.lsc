@@ -57,5 +57,5 @@ export setup(namespace, provider, resolutionContext) -/>
   debug("Namespace", namespace.name, "injectDependencies", resolutionContext.name)
   resource <- callInjectDependencies(provider, depMap, setupContext)
   debug("Namespace", namespace.name, "injectedDependencies", resolutionContext.name)
-  setDependencyNode(resource, node)
+  setDependencyNode(resource, node, provider)
   resource

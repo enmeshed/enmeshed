@@ -5,6 +5,8 @@ debug = require("debug")("@enmeshed/alpha")
 export class DependencyNode:
   // The owning resource
   resource = null
+  // The original provider of the owning resource
+  provider = null
 
   refcount = 0
 
@@ -37,6 +39,7 @@ export class DependencyNode:
     <- this.deps.awaitDestroy()
     this.deps = undefined
     this.resource = undefined
+    this.provider = undefined
     debug("DependencyNode", this.name, "deps destroyed")
 
     // Execute all teardown hooks
