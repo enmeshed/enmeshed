@@ -72,8 +72,9 @@ export class Namespace:
 
     // Early out if resolution already pending or complete.
     { name } = resolutionContext
+    debugInfo = resolutionContext._dump()
     if this.names[name]:
-      debug("Namespace", this.name, "resolve earlyOut", name)
+      debug("Namespace", this.name, "resolve earlyOut", debugInfo)
       return this.names[name]
 
     // Delegate downward
@@ -92,12 +93,12 @@ export class Namespace:
       // Determine if resource is transient
       if isResourceTransient(provider, resolutionContext):
         // If so, perform direct resource creation
-        debug("Namespace", this.name, "creating transient", resolutionContext.name)
+        debug("Namespace", this.name, "creating transient", debugInfo)
         return setup(this, provider, resolutionContext)
       else:
         // Prevent races by ensuring future attempts to resolve the same
         // nontransient resource all get the same promise.
-        debug("Namespace", this.name, "creating persistent", resolutionContext.name)
+        debug("Namespace", this.name, "creating persistent", debugInfo)
         def = deferred()
         this.names[name] = def.promise
         try:

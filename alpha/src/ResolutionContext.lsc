@@ -21,3 +21,9 @@ export class ResolutionContext:
     childContext = new (this.constructor)(requestedName)
     childContext.requestingContext = this
     childContext
+
+  _dump(): string ->
+    if this.requestingContext:
+      `${this.name} --requestedBy-> ${this.requestingContext._dump()}`
+    else:
+      this.name
