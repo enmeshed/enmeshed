@@ -20,6 +20,9 @@ export class Container:
   static awaitDestroy() ->
     this.globalContainer.awaitDestroy()
 
+  static add(...resources) ->
+    this.globalContainer.add(...resources)
+
   static provide(arg1, arg2) ->
     this.globalContainer.provide(arg1, arg2)
 
@@ -32,6 +35,9 @@ export class Container:
     node = getDependencyNode(result)
     if not node.isReferenced(): this.resources.add(result)
     result
+
+  add(...resources): void ->
+    this.resources.add(...resources)
 
   destroy(): void ->
     this.resources.destroy()
