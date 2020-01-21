@@ -12,6 +12,11 @@ class SetupContext:
   getNameArg() ->
     this.resolutionContext.nameArg
 
+  // If a node with this flag set is seen by the global namespace, it will be
+  // autoretained by the global container until app shutdown.
+  globalRetain() ->
+    this.dependencyNode.globalRetain = true
+
 promiseForDep(namespace, resolutionContext, dep, provider) ->
   // If dep is a string, resolve as namespace
   if typeof(dep) == "string":

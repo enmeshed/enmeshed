@@ -1,4 +1,4 @@
-import { Container } from '..'
+import { Container, Namespace } from '..'
 import './resources'
 
 test! 'it works', -/>
@@ -7,4 +7,4 @@ test! 'it works', -/>
 
 afterAll! -/>
   <- Container.awaitDestroy()
-  console.log("final destruction complete")
+  console.log("final destruction complete, remaining resources", Namespace.globalNamespace.names)

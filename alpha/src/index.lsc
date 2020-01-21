@@ -1,6 +1,5 @@
-export { Namespace } from './Namespace'
+export { Namespace, Container } from './Namespace'
 export { DependencyNode } from './DependencyNode'
 export { getDependencies$, injectDependencies$, isTransient$, Provider, createProvider } from './Provider'
 export { splitName, ResolutionContext } from './ResolutionContext'
 export { getDestructor, destroy$, Resources } from './Resource'
-export { Container } from './Container'

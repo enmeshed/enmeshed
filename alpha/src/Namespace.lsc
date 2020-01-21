@@ -2,7 +2,7 @@ import { errors } from '@enmeshed/errors'
 
 import { DependencyNode } from './DependencyNode'
 import { ResolutionContext } from './ResolutionContext'
-import { getDependencyNode } from './Resource'
+import { getDependencyNode, Resources } from './Resource'
 import { isResourceTransient } from './Provider'
 import { setup } from './Setup'
 
@@ -103,9 +103,14 @@ export class Namespace:
         this.names[name] = def.promise
         try:
           resource <- setup(this, provider, resolutionContext)
+          node = getDependencyNode(resource)
           // Add teardown hook to resource to unregister it from the namespace
           // should it be destroyed.
-          getDependencyNode(resource).addTeardownHook(this._unregister.bind(this))
+          node.addTeardownHook(this._unregister.bind(this))
+          // Add globally-retained resources to the global container if needed
+          if (this == Namespace.globalNamespace) and (node.globalRetain):
+            debug("Namespace", this.name, "globally retaining", debugInfo)
+            Container.globalContainer.add(resource)
           def.resolve(resource)
         catch err:
           def.reject(err)
@@ -133,3 +138,48 @@ export class Namespace:
       now providerName = provider.providerName
 
     this._provide(provider, providerName)
+
+
+// A Container fronts a Namespace, forwarding requests and ref'ing the
+// returned objects if they are persistent. The Container can then be
+// destroyed, in turn derefing all the objects it contains.
+export class Container:
+  static globalContainer = new Container(Namespace.globalNamespace)
+
+  resources: Resources = new Resources()
+
+  backingNamespace = null
+
+  constructor(backingNamespace) ->
+    this.backingNamespace = backingNamespace
+
+  static get(name) ->
+    this.globalContainer.get(name)
+
+  static awaitDestroy() ->
+    this.globalContainer.awaitDestroy()
+
+  static add(...resources) ->
+    this.globalContainer.add(...resources)
+
+  static provide(arg1, arg2) ->
+    this.globalContainer.provide(arg1, arg2)
+
+  // Shortcut to the backing namespace's provider registration.
+  provide(arg1, arg2) ->
+    this.backingNamespace.provide(arg1, arg2)
+
+  get(name) -/>
+    result <- this.backingNamespace.resolve(name)
+    node = getDependencyNode(result)
+    if not node.isReferenced(): this.resources.add(result)
+    result
+
+  add(...resources): void ->
+    this.resources.add(...resources)
+
+  destroy(): void ->
+    this.resources.destroy()
+
+  awaitDestroy() ->
+    this.resources.awaitDestroy()
