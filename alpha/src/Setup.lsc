@@ -4,6 +4,14 @@ import { toResource, setDependencyNode } from './Resource'
 
 debug = require("debug")("@enmeshed/alpha")
 
+class SetupContext:
+  constructor(resolutionContext, dependencyNode) ->
+    this.resolutionContext = resolutionContext
+    this.dependencyNode = dependencyNode
+
+  getNameArg() ->
+    this.resolutionContext.nameArg
+
 promiseForDep(namespace, resolutionContext, dep, provider) ->
   // If dep is a string, resolve as namespace
   if typeof(dep) == "string":
@@ -31,12 +39,12 @@ export setup(namespace, provider, resolutionContext) -/>
   // Create associated deptree node
   node = namespace.createDependencyNode()
   node.setResolutionContext(resolutionContext)
-  setupContext = { resolutionContext, dependencyNode: node }
+  setupContext = new SetupContext(resolutionContext, node)
   // Get collection of dependencies from resource provider
   unresolvedDeps <- callGetDependencies(provider, setupContext)
   // Resolve them all from the same namespace
   promises = []
-  keys = [...for key k, val v in unresolvedDeps:
+  keys = [...for key k, val v in (unresolvedDeps or {}):
     p = promiseForDep(namespace, resolutionContext, v, provider)
     promises.push(p)
     [k]
