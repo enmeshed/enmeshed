@@ -1,0 +1,53 @@
+import { errors } from '@enmeshed/errors'
+import { callGetDependencies, callInjectDependencies } from './Provider'
+import { toResource, setDependencyNode } from './Resource'
+
+debug = require("debug")("@enmeshed/alpha")
+
+promiseForDep(namespace, resolutionContext, dep, provider) ->
+  // If dep is a string, resolve as namespace
+  if typeof(dep) == "string":
+    childContext = resolutionContext.asRequestingContextFor(dep)
+    return namespace.resolve(childContext)
+
+  // If dep is a function, await it and examine its result
+  elif typeof(dep) == "function":
+    dep.call(provider)
+      .then((result) ->
+        // If string, resolve as name
+        if typeof(result) == "string":
+          childContext = resolutionContext.asRequestingContextFor(dep)
+          return namespace.resolve(childContext)
+        // If other, treat as the desired resource
+        else:
+          return toResource(result)
+      )
+
+  else:
+    Promise.reject(new errors.InternalError(`IoC: Encountered invalid resource specification while resolving ${resolutionContext} - all resource specifications must be functions or strings.`))
+
+export setup(namespace, provider, resolutionContext) -/>
+  debug("Namespace", namespace.name, "setup", resolutionContext.name)
+  // Create associated deptree node
+  node = namespace.createDependencyNode()
+  node.setResolutionContext(resolutionContext)
+  setupContext = { resolutionContext, dependencyNode: node }
+  // Get collection of dependencies from resource provider
+  unresolvedDeps <- callGetDependencies(provider, setupContext)
+  // Resolve them all from the same namespace
+  promises = []
+  keys = [...for key k, val v in unresolvedDeps:
+    p = promiseForDep(namespace, resolutionContext, v, provider)
+    promises.push(p)
+    [k]
+  ]
+  deps <- Promise.all(promises)
+  // Inject into dependency node which will refcount all the deps
+  node.injectDependencies(deps)
+  // Inject them into the resource
+  depMap = { ...for idx i, elem e in deps: {[keys[i]]: e} }
+  debug("Namespace", namespace.name, "injectDependencies", resolutionContext.name)
+  resource <- callInjectDependencies(provider, depMap, setupContext)
+  debug("Namespace", namespace.name, "injectedDependencies", resolutionContext.name)
+  setDependencyNode(resource, node)
+  resource

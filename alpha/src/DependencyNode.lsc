@@ -1,0 +1,68 @@
+import { getDestructor, Resources } from './Resource'
+
+debug = require("debug")("@enmeshed/alpha")
+
+export class DependencyNode:
+  // The owning resource
+  resource = null
+
+  refcount = 0
+
+  // Resource dependencies
+  deps: Resources = new Resources()
+
+  setResolutionContext(resolutionContext): void ->
+    this.name = resolutionContext.name
+
+  addTeardownHook(hook): void ->
+    if this.teardownHooks:
+      this.teardownHooks.push(hook)
+    else:
+      this.teardownHooks = [hook]
+
+  teardown(): void -/>
+    debug("DependencyNode", this.name, "teardown")
+    // Tear down owning resource
+    destructor = getDestructor(this.resource)
+    if destructor:
+      debug("DependencyNode", this.name, "destructor")
+      try:
+        <- destructor.call(this.resource)
+      catch err:
+        // XXX: Destructor error handling
+        console.error(err)
+
+    // Deref all deps and release internal references
+    debug("DependencyNode", this.name, "deref deps")
+    this.deps.destroy()
+    this.deps = undefined
+    this.resource = undefined
+
+    // Execute all teardown hooks
+    try:
+      if this.teardownHooks:
+        for elem hook in this.teardownHooks: hook(this)
+    catch err:
+      // XXX: destructor error handling
+      console.error(err)
+
+    this.teardownHooks = null
+
+  injectDependencies(deps): void ->
+    this.deps.add(...deps)
+
+  deref(): void ->
+    this.refcount--
+    debug("DependencyNode", this.name, "deref, refcount", this.refcount)
+    if this.refcount < 1:
+      this.teardown().catch((err) ->
+        // XXX: destructor error handling
+        return
+      )
+
+  ref(): void ->
+    this.refcount++
+    debug("DependencyNode", this.name, "ref, refcount", this.refcount)
+
+  isReferenced(): boolean ->
+    this.refcount > 0

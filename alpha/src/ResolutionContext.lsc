@@ -1,0 +1,23 @@
+export splitName(name) ->
+  n = name.indexOf(":")
+  if n > -1:
+    [name.substring(0, n), name.substring(n+1)]
+  else:
+    [name, null]
+
+export class ResolutionContext:
+  constructor(name) ->
+    this.name = name
+    [providerName, nameArg] = splitName(name)
+    this.providerName = providerName
+    this.nameArg = nameArg
+
+  clone() ->
+    next = new this.constructor(this.name)
+    Object.assign(next, this)
+    next
+
+  asRequestingContextFor(requestedName) ->
+    childContext = new (this.constructor)(requestedName)
+    childContext.requestingContext = this
+    childContext

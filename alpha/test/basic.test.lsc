@@ -1,0 +1,9 @@
+import { Container } from '..'
+import './resources'
+
+test! 'it works', -/>
+  <- [Container.get("delay_3"), Container.get("delay_3")]
+  console.log("Got em boys")
+
+afterAll! -/>
+  Container.destroy()

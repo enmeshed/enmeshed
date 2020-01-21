@@ -1,0 +1,34 @@
+import { errors } from '@enmeshed/errors'
+
+dependencyNode$ = Symbol.for("enmeshed.alpha.dependencyNode")
+destroy$ = Symbol.for("enmeshed.alpha.destroy")
+
+export toResource(x) -> x
+
+export getDependencyNode(rsrc) ->
+  rsrc[dependencyNode$]
+
+export setDependencyNode(rsrc, node): void ->
+  rsrc[dependencyNode$] = node
+  node.resource = rsrc
+
+export getDestructor(rsrc) ->
+  rsrc[destroy$]
+
+export { destroy$ }
+
+// Manage references to a collection of resources.
+export class Resources:
+  resources = []
+
+  add(...resources): void ->
+    if not this.resources:
+      throw new errors.InternalError("attempt to mutate a destroyed Resources object")
+    for elem resource in resources:
+      getDependencyNode(resource).ref()
+      this.resources.push(resource)
+
+  destroy(): void ->
+    for elem resource in this.resources:
+      getDependencyNode(resource).deref()
+    this.resources = undefined

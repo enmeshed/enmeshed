@@ -1,0 +1,44 @@
+import { destroy$ } from './Resource'
+
+getDependencies$ = Symbol.for("enmeshed.alpha.getDependencies")
+injectDependencies$ = Symbol.for("enmeshed.alpha.injectDependencies")
+isTransient$ = Symbol.for("enmeshed.alpha.isTransient")
+
+export { getDependencies$, injectDependencies$, isTransient$ }
+
+export callGetDependencies(provider, context) ->
+  provider[getDependencies$](context)
+
+export callInjectDependencies(provider, dependencyMap, context) ->
+  provider[injectDependencies$](dependencyMap, context)
+
+export isResourceTransient(provider, resolutionContext): boolean ->
+  if not provider[isTransient$]: return false
+  provider[isTransient$](resolutionContext)
+
+export class Provider:
+  static dependencies = {}
+
+  static [isTransient$] (resolutionContext) ->
+    this.isTransient(resolutionContext)
+
+  static [getDependencies$] (setupContext) -/>
+    if typeof(this.dependencies) == 'function':
+      return this.dependencies(setupContext)
+    elif typeof(this.dependencies) == 'object':
+      return this.dependencies
+
+  static [injectDependencies$] (dependencyMap, setupContext) -/>
+    resource = new this(dependencyMap)
+    <- resource.init()
+    resource
+
+  static isTransient(resolutionContext) -> false
+
+  [destroy$] () -> this.destroy()
+
+  init() -/>
+    return
+
+  destroy() -/>
+    return

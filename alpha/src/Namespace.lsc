@@ -1,0 +1,134 @@
+import { errors } from '@enmeshed/errors'
+
+import { DependencyNode } from './DependencyNode'
+import { ResolutionContext } from './ResolutionContext'
+import { getDependencyNode } from './Resource'
+import { isResourceTransient } from './Provider'
+import { setup } from './Setup'
+
+deferred = require("p-defer")
+debug = require("debug")("@enmeshed/alpha")
+
+// Context in which names are resolved.
+export class Namespace:
+  // Parent namespace
+  parent: Namespace = null
+
+  // Providers for this namespace
+  providers = {}
+
+  // Names that have already been resolved or are in the process of
+  // resolving. This is a Map<string, Promise<Resource>>
+  names = {}
+
+  // Class for dep nodes
+  static dependencyNode = DependencyNode
+
+  // Class for resolution contexts
+  static resolutionContext = ResolutionContext
+
+  // Global namespace. Replace before use (At app initialization) to use
+  // a custom Namespace class.
+  static globalNamespace = new Namespace("Global")
+
+  // Resolve in global namespace
+  static resolve(resolutionContext) ->
+    this.globalNamespace.resolve(resolutionContext)
+
+  static provide(arg1, arg2) ->
+    this.globalNamespace.provide(arg1, arg2)
+
+  constructor(name) ->
+    this.name = name
+
+  // Determine if a given resolution context should be delegated downward
+  // to a child namespace.
+  delegateDownward(resolutionContext): Namespace ->
+    null
+
+  // Create a blank dependency node for a resource within this namespace.
+  createDependencyNode() ->
+    new (this.constructor.dependencyNode)()
+
+  _unregister(node): void ->
+    if node.name:
+      debug("Namespace", this.name, "_unregister", node.name)
+      this.names[node.name] = undefined
+
+  // Register a provider
+  _provide(provider, providerName) ->
+    if this.providers[providerName]:
+      throw new errors.InternalError(`provider named '${providerName}' already exists`)
+    debug("Namespace", this.name, "_provide providing", providerName)
+    this.providers[providerName] = provider
+
+  resolve(resolutionContext) -/>
+    // Handle string args.
+    if typeof(resolutionContext) == 'string':
+      if this.names[resolutionContext]:
+        debug("Namespace", this.name, "resolve earlyOut", resolutionContext)
+        return this.names[resolutionContext]
+      now resolutionContext = new (this.constructor.resolutionContext)(resolutionContext)
+
+    // Early out if resolution already pending or complete.
+    { name } = resolutionContext
+    if this.names[name]:
+      debug("Namespace", this.name, "resolve earlyOut", name)
+      return this.names[name]
+
+    // Delegate downward
+    dd = this.delegateDownward(resolutionContext)
+    if dd:
+      downwardContext = resolutionContext.clone()
+      downwardContext.wasDelegatedDownward = true
+      return dd.resolve(downwardContext)
+
+    // Locate provider for resource
+    { providerName } = resolutionContext
+    provider = this.providers[providerName]
+
+    // IF a provider exists, we can conjure the resource.
+    if provider: {
+      // Determine if resource is transient
+      if isResourceTransient(provider, resolutionContext):
+        // If so, perform direct resource creation
+        debug("Namespace", this.name, "creating transient", resolutionContext.name)
+        return setup(this, provider, resolutionContext)
+      else:
+        // Prevent races by ensuring future attempts to resolve the same
+        // nontransient resource all get the same promise.
+        debug("Namespace", this.name, "creating persistent", resolutionContext.name)
+        def = deferred()
+        this.names[name] = def.promise
+        try:
+          resource <- setup(this, provider, resolutionContext)
+          // Add teardown hook to resource to unregister it from the namespace
+          // should it be destroyed.
+          getDependencyNode(resource).addTeardownHook(this._unregister.bind(this))
+          def.resolve(resource)
+        catch err:
+          def.reject(err)
+
+        return def.promise
+    } else: {
+      // No provider exists; delegate to parent if we weren't already delegated
+      // downward. Otherwise resolution was a failure.
+      if this.parent and (not resolutionContext.wasDelegatedDownward):
+        return this.parent.resolve(resolutionContext)
+      else:
+        throw new errors.InternalError(`Resource '${name}' could not be resolved in namespace ${this.name}.`)
+    }
+
+  provide(arg1, arg2): void ->
+    let [providerName, provider] = if typeof(arg1) == 'string':
+      [arg1, arg2]
+    else:
+      [arg2, arg1]
+
+    if not provider:
+      throw new errors.InternalError("unspecified provider")
+
+    if not providerName:
+      now providerName = provider.providerName
+
+    this._provide(provider, providerName)

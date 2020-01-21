@@ -48,6 +48,7 @@
   },
   "workspaces": {
     "packages": [
+      "alpha",
       "grpc",
       "node-control-plane",
       "mesh-reflection",
