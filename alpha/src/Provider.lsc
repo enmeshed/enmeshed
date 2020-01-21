@@ -56,7 +56,7 @@ export class Provider:
 
   static injectDependencies(dependencyMap, setupContext) -/>
     resource = new this(dependencyMap)
-    <- resource.init()
+    <- resource.init(setupContext)
     resource
 
   static isTransient(resolutionContext) -> false
