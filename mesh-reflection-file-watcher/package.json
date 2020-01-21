@@ -1,6 +1,6 @@
 {
   "name": "@enmeshed/mesh-reflection-file-watcher",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -28,7 +28,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/mesh-reflection": "^0.2.1",
+    "@enmeshed/mesh-reflection": "^0.2.2",
     "debug": "^4.1.1"
   },
   "devDependencies": {
