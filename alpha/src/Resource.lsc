@@ -20,22 +20,26 @@ export { destroy$ }
 
 // Manage references to a collection of resources.
 export class Resources:
-  resources = []
+  resources = new Map()
 
   add(...resources): void ->
     if not this.resources:
       throw new errors.InternalError("attempt to mutate a destroyed Resources object")
     for elem resource in resources:
-      getDependencyNode(resource).ref()
-      this.resources.push(resource)
+      if not this.resources.has(resource):
+        getDependencyNode(resource).ref()
+        this.resources.set(resource, true)
 
   destroy(): void ->
-    for elem resource in this.resources:
-      getDependencyNode(resource).deref()
+    this.resources.forEach((value, key) ->
+      getDependencyNode(key).deref()
+    )
     this.resources = undefined
 
   awaitDestroy() -/>
-    <- [...for elem resource in this.resources:
-      [getDependencyNode(resource).deref()]
-    ]
+    promises = []
+    this.resources.forEach((value, key) ->
+      promises.push(getDependencyNode(key).deref())
+    )
+    <- Promise.all(promises)
     this.resources = undefined
