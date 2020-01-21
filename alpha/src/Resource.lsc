@@ -32,3 +32,9 @@ export class Resources:
     for elem resource in this.resources:
       getDependencyNode(resource).deref()
     this.resources = undefined
+
+  awaitDestroy() -/>
+    <- [...for elem resource in this.resources:
+      [getDependencyNode(resource).deref()]
+    ]
+    this.resources = undefined

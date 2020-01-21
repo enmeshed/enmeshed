@@ -17,8 +17,8 @@ export class Container:
   static get(name) ->
     this.globalContainer.get(name)
 
-  static destroy() ->
-    this.globalContainer.destroy()
+  static awaitDestroy() ->
+    this.globalContainer.awaitDestroy()
 
   static provide(arg1, arg2) ->
     this.globalContainer.provide(arg1, arg2)
@@ -35,3 +35,6 @@ export class Container:
 
   destroy(): void ->
     this.resources.destroy()
+
+  awaitDestroy() ->
+    this.resources.awaitDestroy()

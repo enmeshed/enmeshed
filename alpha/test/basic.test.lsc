@@ -6,4 +6,5 @@ test! 'it works', -/>
   console.log("Got em boys")
 
 afterAll! -/>
-  Container.destroy()
+  <- Container.awaitDestroy()
+  console.log("final destruction complete")

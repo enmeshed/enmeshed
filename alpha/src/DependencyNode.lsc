@@ -33,10 +33,11 @@ export class DependencyNode:
         console.error(err)
 
     // Deref all deps and release internal references
-    debug("DependencyNode", this.name, "deref deps")
-    this.deps.destroy()
+    debug("DependencyNode", this.name, "deps.awaitDestroy()")
+    <- this.deps.awaitDestroy()
     this.deps = undefined
     this.resource = undefined
+    debug("DependencyNode", this.name, "deps destroyed")
 
     // Execute all teardown hooks
     try:
@@ -51,18 +52,20 @@ export class DependencyNode:
   injectDependencies(deps): void ->
     this.deps.add(...deps)
 
-  deref(): void ->
+  deref() ->
     this.refcount--
-    debug("DependencyNode", this.name, "deref, refcount", this.refcount)
+    debug("DependencyNode", this.name, "deref - refcount", this.refcount)
     if this.refcount < 1:
       this.teardown().catch((err) ->
         // XXX: destructor error handling
         return
       )
+    else:
+      return Promise.resolve(undefined)
 
   ref(): void ->
     this.refcount++
-    debug("DependencyNode", this.name, "ref, refcount", this.refcount)
+    debug("DependencyNode", this.name, "ref - refcount", this.refcount)
 
   isReferenced(): boolean ->
     this.refcount > 0
