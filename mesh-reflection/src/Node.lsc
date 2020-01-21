@@ -24,6 +24,7 @@ export class Node:
   // Node provision interfaces
   nodeServices = {}
   nodeClients = {}
+  nodeGenericPorts = {}
 
   constructor() ->
     this.domain = new ReflectionDomain()
@@ -45,10 +46,15 @@ export class Node:
     debug('node.join: joined')
     this._joined()
 
-  // Return the NodeLocalPort object corresponding to the named service
+  // Return the NodeLocalPort object corresponding to the named service provided
+  // by the Node.
   getServicePort(serviceName): NodeLocalPort -/>
     extant = this.nodeServices[serviceName]
     if extant: return extant
+
+    // Prevent re-entrancy
+    def = deferred()
+    this.nodeServices[serviceName] = def.promise
 
     { provider, environment } = this
     mrSvc = environment.getService(serviceName)
@@ -57,15 +63,19 @@ export class Node:
 
     debug('node.getServicePort: creating port for service', serviceName)
     providedSvc = this._createServicePort(provider, mrSvc)
-    this.nodeServices[serviceName] = providedSvc
+    def.resolve(providedSvc)
 
-    providedSvc
+    def.promise
 
   // Return an interface that will help this node connect to the
   // named service.
   getClientPort(serviceName): NodeLocalPort -/>
     extant = this.nodeClients[serviceName]
     if extant: return extant
+
+    // Prevent re-entrancy
+    def = deferred()
+    this.nodeClients[serviceName] = def.promise
 
     { environment } = this
     mrSvc = environment.getService(serviceName)
@@ -74,10 +84,25 @@ export class Node:
 
     debug('node.getClientPort: creating client port for service', serviceName)
     cliPort = this._createClientPort(mrSvc)
-    this.nodeClients[serviceName] = cliPort
     debug('node.getClientPort: starting client port for service', serviceName)
     <- cliPort.start()
-    cliPort
+    def.resolve(cliPort)
+
+    def.promise
+
+  getGenericPort(identifier): NodeLocalPort -/>
+    extant = this.nodeGenericPorts[identifier]
+    if extant: return extant
+
+    // Prevent re-entrancy
+    def = deferred()
+    this.nodeGenericPorts[identifier] = def.promise
+
+    port = this._createGenericPort(identifier)
+    <- port.start()
+    def.resolve(port)
+
+    def.promise
 
   // Gracefully shutdown all services
   stop() -/>
@@ -88,6 +113,7 @@ export class Node:
     promises = [
       ...for val svcPort in this.nodeServices: [svcPort.shutdown()]
       ...for val svcPort in this.nodeClients: [svcPort.shutdown()]
+      ...for val svcPort in this.nodeGenericPorts: [svcPort.shutdown()]
     ]
     <- Promise.all(promises)
 
@@ -100,6 +126,7 @@ export class Node:
   _joined(): void -> return
   _createServicePort(provider, service): NodeLocalPort -> null
   _createClientPort(service): NodeLocalPort -> null
+  _createGenericPort(identifier): NodeLocalPort -> null
 
 // Class representing either a service on this node, or a client mapping
 // this node to another
