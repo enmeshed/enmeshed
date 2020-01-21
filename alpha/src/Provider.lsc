@@ -16,24 +16,53 @@ export isResourceTransient(provider, resolutionContext): boolean ->
   if not provider[isTransient$]: return false
   provider[isTransient$](resolutionContext)
 
+export createProvider(spec) ->
+  provider = {}
+  if spec.dependencies:
+    deps = spec.dependencies
+    provider[getDependencies$] = -/> deps
+  elif spec.getDependencies:
+    provider[getDependencies$] = spec.getDependencies
+  else:
+    provider[getDependencies$] = -/> null
+
+  if spec.injectDependencies:
+    provider[injectDependencies$] = spec.injectDependencies
+  else:
+    throw new Error("createProvider: injectDependencies function is required")
+
+  if spec.isTransient:
+    provider[isTransient$] = spec.isTransient
+
+  if spec.name or spec.providerName:
+    provider.providerName = spec.name or spec.providerName
+
 export class Provider:
   static dependencies = {}
 
   static [isTransient$] (resolutionContext) ->
     this.isTransient(resolutionContext)
 
-  static [getDependencies$] (setupContext) -/>
+  static [getDependencies$] (setupContext) ->
     if typeof(this.dependencies) == 'function':
-      return this.dependencies(setupContext)
+      this.dependencies(setupContext)
     elif typeof(this.dependencies) == 'object':
-      return this.dependencies
+      Promise.resolve(this.dependencies)
+    else:
+      Promise.resolve(undefined)
 
-  static [injectDependencies$] (dependencyMap, setupContext) -/>
+  static [injectDependencies$] (dependencyMap, setupContext) ->
+    this.injectDependencies(dependencyMap, setupContext)
+
+  static injectDependencies(dependencyMap, setupContext) -/>
     resource = new this(dependencyMap)
     <- resource.init()
     resource
 
   static isTransient(resolutionContext) -> false
+
+  constructor(deps) ->
+    Object.assign(this, deps)
 
   [destroy$] () -> this.destroy()
 
