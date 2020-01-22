@@ -6,5 +6,5 @@ test! 'it works', -/>
   console.log("Got em boys")
 
 afterAll! -/>
-  <- Container.awaitDestroy()
+  <- Container.clear()
   console.log("final destruction complete, remaining resources", Namespace.globalNamespace.names)

@@ -12,9 +12,9 @@ createDelayProvider(n, dep) ->
       super()
       console.log(`DelayProvider(${n}) constructor: deps: ${deps}`)
 
-    init(setupContext) ->
+    init() ->
       console.log(`DelayProvider(${n}).init`)
-      if n == 1: setupContext.globalRetain()
+      if n == 1: Container.retain(this)
       def = deferred()
       setTimeout(-> def.resolve(), 1000)
       def.promise

@@ -1,6 +1,6 @@
 import { errors } from '@enmeshed/errors'
-import { callGetDependencies, callInjectDependencies } from './Provider'
-import { toResource, setDependencyNode } from './Resource'
+import { callGetDependencies, callInjectDependencies, callProviderInitializer } from './Provider'
+import { toResource, setDependencyNode, callInitializer } from './Resource'
 
 debug = require("debug")("@enmeshed/alpha")
 
@@ -12,10 +12,6 @@ class SetupContext:
   getNameArg() ->
     this.resolutionContext.nameArg
 
-  // If a node with this flag set is seen by the global namespace, it will be
-  // autoretained by the global container until app shutdown.
-  globalRetain() ->
-    this.dependencyNode.globalRetain = true
 
 promiseForDep(namespace, resolutionContext, dep, provider) ->
   // If dep is a string, resolve as namespace
@@ -63,4 +59,8 @@ export setup(namespace, provider, resolutionContext) -/>
   resource <- callInjectDependencies(provider, depMap, setupContext)
   debug("Namespace", namespace.name, "injectedDependencies", resolutionContext.name)
   setDependencyNode(resource, node, provider)
+  debug("Namespace", namespace.name, "callInitializer", resolutionContext.name)
+  <- callProviderInitializer(resource, setupContext)
+  <- callInitializer(resource)
+  debug("Namespace", namespace.name, "calledInitializer", resolutionContext.name)
   resource

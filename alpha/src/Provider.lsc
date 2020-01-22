@@ -1,8 +1,9 @@
-import { destroy$ } from './Resource'
+import { destroy$, init$ } from './Resource'
 
 getDependencies$ = Symbol.for("enmeshed.alpha.getDependencies")
 injectDependencies$ = Symbol.for("enmeshed.alpha.injectDependencies")
 isTransient$ = Symbol.for("enmeshed.alpha.isTransient")
+providerInit$ = Symbol.for("enmeshed.alpha.providerInitializer")
 
 export { getDependencies$, injectDependencies$, isTransient$ }
 
@@ -11,6 +12,12 @@ export callGetDependencies(provider, context) ->
 
 export callInjectDependencies(provider, dependencyMap, context) ->
   provider[injectDependencies$](dependencyMap, context)
+
+export callProviderInitializer(provider, resource, context) ->
+  if provider[providerInit$]:
+    provider[providerInit$](resource, context)
+  else:
+    Promise.resolve(undefined)
 
 export isResourceTransient(provider, resolutionContext): boolean ->
   if not provider[isTransient$]: return false
@@ -30,6 +37,9 @@ export createProvider(spec) ->
     provider[injectDependencies$] = spec.injectDependencies
   else:
     throw new Error("createProvider: injectDependencies function is required")
+
+  if spec.init:
+    provider[providerInit$] = spec.init
 
   if spec.isTransient:
     provider[isTransient$] = spec.isTransient
@@ -54,15 +64,15 @@ export class Provider:
   static [injectDependencies$] (dependencyMap, setupContext) ->
     this.injectDependencies(dependencyMap, setupContext)
 
-  static injectDependencies(dependencyMap, setupContext) -/>
-    resource = new this(dependencyMap)
-    <- resource.init(setupContext)
-    resource
+  static injectDependencies(dependencyMap, setupContext) ->
+    Promise.resolve(new this(dependencyMap, setupContext))
 
   static isTransient(resolutionContext) -> false
 
   constructor(deps) ->
     Object.assign(this, deps)
+
+  [init$] () -> this.init()
 
   [destroy$] () -> this.destroy()
 

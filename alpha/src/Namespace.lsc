@@ -107,10 +107,6 @@ export class Namespace:
           // Add teardown hook to resource to unregister it from the namespace
           // should it be destroyed.
           node.addTeardownHook(this._unregister.bind(this))
-          // Add globally-retained resources to the global container if needed
-          if (this == Namespace.globalNamespace) and (node.globalRetain):
-            debug("Namespace", this.name, "globally retaining", debugInfo)
-            Container.globalContainer.add(resource)
           def.resolve(resource)
         catch err:
           def.reject(err)
@@ -156,8 +152,13 @@ export class Container:
   static get(name) ->
     this.globalContainer.get(name)
 
-  static awaitDestroy() ->
-    this.globalContainer.awaitDestroy()
+  static clear() ->
+    this.globalContainer.clear()
+
+  static retain(resource): void ->
+    node = getDependencyNode(resource)
+    debug("Container - global container is retaining", node.name)
+    this.add(resource)
 
   static add(...resources) ->
     this.globalContainer.add(...resources)
@@ -178,8 +179,5 @@ export class Container:
   add(...resources): void ->
     this.resources.add(...resources)
 
-  destroy(): void ->
-    this.resources.destroy()
-
-  awaitDestroy() ->
-    this.resources.awaitDestroy()
+  clear() ->
+    this.resources.clear()

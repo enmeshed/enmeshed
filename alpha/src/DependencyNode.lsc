@@ -22,6 +22,16 @@ export class DependencyNode:
     else:
       this.teardownHooks = [hook]
 
+  addEvictionSite(site): void ->
+    if not this.evictionSites:
+      this.evictionSites = new Map()
+
+    this.evictionSites.set(site, true)
+
+  removeEvictionSite(site): void ->
+    if this.evictionSites:
+      this.evictionSites.delete(site)
+
   teardown(): void -/>
     debug("DependencyNode", this.name, "teardown")
     // Tear down owning resource
@@ -35,12 +45,13 @@ export class DependencyNode:
         console.error(err)
 
     // Deref all deps and release internal references
-    debug("DependencyNode", this.name, "deps.awaitDestroy()")
-    <- this.deps.awaitDestroy()
+    debug("DependencyNode", this.name, "deps.clear()")
+    <- this.deps.clear()
     this.deps = undefined
     this.resource = undefined
     this.provider = undefined
-    debug("DependencyNode", this.name, "deps destroyed")
+    this.evictionSites = undefined
+    debug("DependencyNode", this.name, "deps cleared")
 
     // Execute all teardown hooks
     try:
@@ -72,3 +83,13 @@ export class DependencyNode:
 
   isReferenced(): boolean ->
     this.refcount > 0
+
+  // Evict this resource from all caches that support eviction.
+  evict() ->
+    if this.evictionSites:
+      // Mutation safety: copy eviction sites first
+      sites = [...for site of this.evictionSites.keys(): [site]]
+
+      Promise.all([...for elem site in sites: [site.evict(this)]])
+    else:
+      Promise.resolve(undefined)

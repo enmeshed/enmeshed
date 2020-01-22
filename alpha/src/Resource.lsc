@@ -1,6 +1,7 @@
 import { errors } from '@enmeshed/errors'
 
 dependencyNode$ = Symbol.for("enmeshed.alpha.dependencyNode")
+init$ = Symbol.for("enmeshed.alpha.init")
 destroy$ = Symbol.for("enmeshed.alpha.destroy")
 
 export toResource(x) -> x
@@ -13,33 +14,114 @@ export setDependencyNode(rsrc, node, provider): void ->
   node.resource = rsrc
   node.provider = provider
 
+export getInitializer(rsrc) ->
+  rsrc[init$]
+
+export callInitializer(rsrc, setupContext) ->
+  if rsrc[init$]: rsrc[init$](setupContext) else: Promise.resolve(undefined)
+
 export getDestructor(rsrc) ->
   rsrc[destroy$]
 
-export { destroy$ }
+export { destroy$, init$ }
 
 // Manage references to a collection of resources.
-export class Resources:
+export class ResourceCache:
+  supportsEviction = false
+
+  // Whenever a resource is added to a cache that supports eviction, add
+  // an eviction handler to the resource's dep node.
+  resourceWasAdded(resource): void ->
+    if this.supportsEviction:
+      getDependencyNode(resource).addEvictionSite(this)
+
+  resourceWasRemoved(resource): void ->
+    if this.supportsEviction:
+      getDependencyNode(resource).removeEvictionSite(this)
+
+  evict(resource): Promise<void> -> Promise.resolve(undefined)
+
+export class Resources extends ResourceCache:
   resources = new Map()
 
   add(...resources): void ->
-    if not this.resources:
-      throw new errors.InternalError("attempt to mutate a destroyed Resources object")
     for elem resource in resources:
       if not this.resources.has(resource):
-        getDependencyNode(resource).ref()
         this.resources.set(resource, true)
+        getDependencyNode(resource).ref()
+        this.resourceWasAdded(resource)
 
   destroy(): void ->
-    this.resources.forEach((value, key) ->
+    this.resources.forEach((value, key) =>
       getDependencyNode(key).deref()
+      this.resourceWasRemoved(key)
     )
-    this.resources = undefined
+    this.resources.clear()
 
-  awaitDestroy() -/>
+  evict(resource) ->
+    if this.resources.has(resource):
+      this.resources.delete(resource)
+      this.resourceWasRemoved(resource)
+      getDependencyNode(resource).deref()
+    else:
+      Promise.resolve(undefined)
+
+  clear(): Promise<void> ->
     promises = []
-    this.resources.forEach((value, key) ->
+    this.resources.forEach((value, key) =>
+      this.resourceWasRemoved(key)
       promises.push(getDependencyNode(key).deref())
     )
-    <- Promise.all(promises)
-    this.resources = undefined
+    this.resources.clear()
+    Promise.all(promises)
+
+export class ResourceMap extends ResourceCache:
+  nameToResource = new Map()
+
+  // Set a key in the map. This method is synchronous.
+  set(key, resource): ResourceMap ->
+    if not this.nameToResource.has(key):
+      this.nameToResource.set(key, resource)
+      getDependencyNode(resource).ref()
+      this.resourceWasAdded(resource)
+
+    this
+
+  // Get resource by key. This method is synchronous.
+  get(key) ->
+    this.nameToResource.get(key)
+
+  // Delete a key from the map. This method is asynchronous and returns
+  // Promise<true, false> insofar as the key existed and was removed.
+  // The returned promise never rejects.
+  delete(key): Promise<boolean> ->
+    resource = this.nameToResource.get(key)
+    if resource:
+      this.nameToResource.delete(key)
+      this.resourceWasRemoved(resource)
+      getDependencyNode(resource).deref().then(-> true)
+    else:
+      Promise.resolve(false)
+
+  // Cache eviction. Performs a linear search of the map and should not
+  // be used in general purpose code.
+  evict(resource) ->
+    let targetKey = undefined
+    for entry of this.nameToResource.entries():
+      if entry[1] == resource:
+        now targetKey = entry[0]
+        break
+
+    if targetKey != undefined:
+      this.delete(targetKey)
+    else:
+      Promise.resolve(undefined)
+
+  clear(): Promise<void> ->
+    promises = []
+    this.nameToResource.forEach((resource) =>
+      this.resourceWasRemoved(resource)
+      promises.push(getDependencyNode(resource).deref())
+    )
+    this.nameToResource.clear()
+    Promise.all(promises)
