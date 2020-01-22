@@ -31,7 +31,7 @@ export class FailedPreconditionError extends PreconditionError:
       this.addDetail((new PreconditionFailure()).addViolation(type, subject, description))
 
 // Indicates that a specific argument was out of the valid range.
-export class OutOfRangeError extends FailedPreconditionError:
+export class OutOfRangeError extends PreconditionError:
   static className = "OutOfRangeError"
   httpStatus = 400
   gRPCStatus = "OUT_OF_RANGE"
@@ -43,7 +43,7 @@ export class OutOfRangeError extends FailedPreconditionError:
 
 // Indicates that an object the user is trying to create already exists
 // in the system state
-export class AlreadyExistsError extends FailedPreconditionError:
+export class AlreadyExistsError extends PreconditionError:
   static className = "AlreadyExistsError"
   httpStatus = 409
   gRPCStatus = "ALREADY_EXISTS"
@@ -60,7 +60,7 @@ export class AlreadyExistsError extends FailedPreconditionError:
 // expected to exist. For a search query scenario in which the object may
 // or may not exist, an empty result set should be returned rather than
 // throwing an error.
-export class NotFoundError extends FailedPreconditionError:
+export class NotFoundError extends PreconditionError:
   static className = "NotFoundError"
   httpStatus = 404
   gRPCStatus = "NOT_FOUND"
