@@ -92,6 +92,7 @@ beforeAll! -/>
 
 // Close grpc server
 afterAll! ->
+  client.close()
   console.log("stopping grpc server")
   server.shutdown()
 

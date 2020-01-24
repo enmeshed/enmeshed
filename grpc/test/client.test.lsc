@@ -31,6 +31,7 @@ makeClient() -/>
 test! "unary", -/>
   client <- makeClient()
   resp <- client.unary({message: 'test message'})
+  client.close()
   expect(resp.message).toBe("unary reply: test message")
 
 test! "unary server error", -/>
@@ -40,6 +41,7 @@ test! "unary server error", -/>
     <- client.unary({message: 'fail'})
   catch xerr:
     now err = xerr
+  client.close()
   expect(err.details).toBe('failed call')
 
 test! "clientStream", -/>
@@ -49,6 +51,7 @@ test! "clientStream", -/>
     yield { message: "world" }
 
   resp <- client.clientStream(gen)
+  client.close()
   expect(resp.message).toBe("stream concatenated: hello world")
 
 test! 'clientStream client error', -/>
@@ -63,6 +66,7 @@ test! 'clientStream client error', -/>
     expect(true).toBe(false)
   catch err:
     expect(err.message).toBe("client error")
+  client.close()
 
 test! 'clientStream server error', -/>
   client <- makeClient()
@@ -76,6 +80,7 @@ test! 'clientStream server error', -/>
     expect(true).toBe(false)
   catch err:
     expect(err.details).toBe("failed call")
+  client.close()
 
 test! "serverStream", -/>
   client <- makeClient()
@@ -83,6 +88,7 @@ test! "serverStream", -/>
   let str = ''
   for await (packet of stream): now str += packet.message
   expect(str).toBe('server stream echo: hello world')
+  client.close()
 
 test! "serverStream error", -/>
   client <- makeClient()
@@ -93,3 +99,4 @@ test! "serverStream error", -/>
     expect(true).toBe(false)
   catch err:
     expect(err.details).toBe("failed call")
+  client.close()

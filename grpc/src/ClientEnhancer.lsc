@@ -140,6 +140,9 @@ export class ClientEnhancer:
   // XXX: not working yet.
   unmarshalError(err) -> err
 
+  close(): void ->
+    this.grpcClient.close()
+
   _wrapMethods(): void ->
     { grpcClient } = this
 
