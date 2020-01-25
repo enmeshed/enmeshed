@@ -14,6 +14,8 @@ module.exports = {
   },
   "rules": {
     "@lightscript/no-implicit-imports": 1,
-    "no-unreachable": 0
+    "no-unreachable": 0,
+    "constructor-super": 0,
+    "no-this-before-super": 0
   }
 }
