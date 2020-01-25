@@ -18,10 +18,10 @@ export getInitializer(rsrc) ->
   rsrc[init$]
 
 export callInitializer(rsrc, setupContext) ->
-  if rsrc[init$]: rsrc[init$](setupContext) else: Promise.resolve(undefined)
+  if rsrc?[init$]: rsrc[init$](setupContext) else: Promise.resolve(undefined)
 
 export getDestructor(rsrc) ->
-  rsrc[destroy$]
+  rsrc?[destroy$]
 
 export { destroy$, init$ }
 
@@ -44,6 +44,9 @@ export class ResourceCache:
 export class Resources extends ResourceCache:
   resources = new Map()
 
+  constructor(supportsEviction) ->
+    this.supportsEviction = !!supportsEviction
+
   add(...resources): void ->
     for elem resource in resources:
       if not this.resources.has(resource):
@@ -57,6 +60,8 @@ export class Resources extends ResourceCache:
       this.resourceWasRemoved(key)
     )
     this.resources.clear()
+
+  [Symbol.iterator] () -> this.resources.keys()
 
   evict(resource) ->
     if this.resources.has(resource):

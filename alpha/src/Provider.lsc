@@ -47,6 +47,29 @@ export createProvider(spec) ->
   if spec.name or spec.providerName:
     provider.providerName = spec.name or spec.providerName
 
+// Like createProvider, but mutates the spec, preserving `this`
+export toProvider(spec) ->
+  if spec.dependencies:
+    spec[getDependencies$] = -/> this.dependencies
+  elif spec.getDependencies:
+    spec[getDependencies$] = spec.getDependencies
+  else:
+    spec[getDependencies$] = -/> null
+
+  if spec.injectDependencies:
+    spec[injectDependencies$] = spec.injectDependencies
+  else:
+    throw new Error("toProvider: injectDependencies function is required")
+
+  if spec.init:
+    spec[providerInit$] = spec.init
+
+  if spec.isTransient:
+    spec[isTransient$] = spec.isTransient
+
+  if spec.name or spec.providerName:
+    spec.providerName = spec.name or spec.providerName
+
 export class Provider:
   static dependencies = {}
 
@@ -69,7 +92,7 @@ export class Provider:
 
   static isTransient(resolutionContext) -> false
 
-  constructor(deps) ->
+  constructor(deps, setupContext) ->
     Object.assign(this, deps)
 
   [init$] () -> this.init()

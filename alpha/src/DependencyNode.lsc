@@ -61,7 +61,7 @@ export class DependencyNode:
       // XXX: destructor error handling
       console.error(err)
 
-    this.teardownHooks = null
+    this.teardownHooks = undefined
 
   injectDependencies(deps): void ->
     this.deps.add(...deps)
