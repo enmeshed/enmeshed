@@ -19,7 +19,7 @@ export callProviderInitializer(provider, resource, context) ->
   else:
     Promise.resolve(undefined)
 
-export isResourceTransient(provider, resolutionContext): boolean ->
+export callIsTransient(provider, resolutionContext): boolean ->
   if not provider[isTransient$]: return false
   provider[isTransient$](resolutionContext)
 
@@ -47,6 +47,8 @@ export createProvider(spec) ->
   if spec.name or spec.providerName:
     provider.providerName = spec.name or spec.providerName
 
+  provider
+
 // Like createProvider, but mutates the spec, preserving `this`
 export toProvider(spec) ->
   if spec.dependencies:
@@ -69,6 +71,8 @@ export toProvider(spec) ->
 
   if spec.name or spec.providerName:
     spec.providerName = spec.name or spec.providerName
+
+  spec
 
 export class Provider:
   static dependencies = {}

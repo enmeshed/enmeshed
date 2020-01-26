@@ -2,8 +2,8 @@ import { errors } from '@enmeshed/errors'
 
 import { DependencyNode } from './DependencyNode'
 import { ResolutionContext } from './ResolutionContext'
-import { getDependencyNode, Resources } from './Resource'
-import { isResourceTransient } from './Provider'
+import { callIsTransient } from './Provider'
+import { getDependencyNode, Resources, isTransient } from './Resource'
 import { setup } from './Setup'
 
 deferred = require("p-defer")
@@ -91,10 +91,10 @@ export class Namespace:
     // IF a provider exists, we can conjure the resource.
     if provider: {
       // Determine if resource is transient
-      if isResourceTransient(provider, resolutionContext):
+      if callIsTransient(provider, resolutionContext):
         // If so, perform direct resource creation
         debug("Namespace", this.name, "creating transient", debugInfo)
-        return setup(this, provider, resolutionContext)
+        return setup(this, provider, resolutionContext, true)
       else:
         // Prevent races by ensuring future attempts to resolve the same
         // nontransient resource all get the same promise.
@@ -102,7 +102,7 @@ export class Namespace:
         def = deferred()
         this.names[name] = def.promise
         try:
-          resource <- setup(this, provider, resolutionContext)
+          resource <- setup(this, provider, resolutionContext, false)
           node = getDependencyNode(resource)
           // Add teardown hook to resource to unregister it from the namespace
           // should it be destroyed.
@@ -172,8 +172,7 @@ export class Container:
 
   get(name) -/>
     result <- this.backingNamespace.resolve(name)
-    node = getDependencyNode(result)
-    if not node.isReferenced(): this.resources.add(result)
+    this.resources.add(result)
     result
 
   add(...resources): void ->

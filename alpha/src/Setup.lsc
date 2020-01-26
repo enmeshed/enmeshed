@@ -36,11 +36,12 @@ promiseForDep(namespace, resolutionContext, dep, setupContext) ->
   else:
     Promise.reject(new errors.InternalError(`IoC: Encountered invalid resource specification while resolving ${resolutionContext} - all resource specifications must be functions or strings.`))
 
-export setup(namespace, provider, resolutionContext) -/>
+export setup(namespace, provider, resolutionContext, isTransient) -/>
   debug("Namespace", namespace.name, "setup", resolutionContext.name)
   // Create associated deptree node
   node = namespace.createDependencyNode()
   node.setResolutionContext(resolutionContext)
+  node.isTransient = isTransient
   setupContext = new SetupContext(resolutionContext, node, provider)
   // Get collection of dependencies from resource provider
   unresolvedDeps <- callGetDependencies(provider, setupContext)
