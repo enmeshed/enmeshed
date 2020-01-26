@@ -147,7 +147,7 @@ export class Container:
   backingNamespace = null
 
   constructor(backingNamespace) ->
-    this.backingNamespace = backingNamespace
+    this.backingNamespace = backingNamespace or (Namespace.globalNamespace)
 
   static get(name) ->
     this.globalContainer.get(name)
