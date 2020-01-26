@@ -1,10 +1,37 @@
-import { Container, Namespace } from '..'
-import './resources'
+import { Provider, Container, Namespace } from '..'
+deferred = require('p-defer')
+
+createDelayProvider(n, dep) ->
+  class DelayProvider extends Provider:
+    static providerName = `delay_${n}`
+
+    static dependencies = if dep: { "dep": dep } else: {}
+
+    constructor(deps) ->
+      super()
+      console.log(`DelayProvider(${n}) constructor: deps: ${deps}`)
+
+    init() ->
+      console.log(`DelayProvider(${n}).init`)
+      def = deferred()
+      setTimeout(-> def.resolve(), 1000)
+      def.promise
+
+    destroy() -/>
+      console.log(`DelayProvider(${n}).destroy`)
+
+  Container.provide(DelayProvider)
+
+createDelayProvider(1)
+createDelayProvider(2, "delay_1")
+createDelayProvider(3, "delay_2")
+
+let ctr = new Container()
 
 test! 'it works', -/>
-  <- [Container.get("delay_3"), Container.get("delay_3")]
+  <- [ctr.get("delay_3"), ctr.get("delay_3")]
   console.log("Got em boys")
 
 afterAll! -/>
-  <- Container.clear()
+  <- ctr.clear()
   console.log("final destruction complete, remaining resources", Namespace.globalNamespace.names)

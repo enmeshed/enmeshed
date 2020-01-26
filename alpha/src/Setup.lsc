@@ -5,36 +5,52 @@ import { toResource, setDependencyNode, callInitializer } from './Resource'
 debug = require("debug")("@enmeshed/alpha")
 
 class SetupContext:
-  constructor(resolutionContext, dependencyNode, provider) ->
+  constructor(resolutionContext, dependencyNode, provider, namespace) ->
     this.resolutionContext = resolutionContext
     this.dependencyNode = dependencyNode
     this.provider = provider
+    this.namespace = namespace
 
   getNameArg() ->
     this.resolutionContext.nameArg
 
+export class Dependency:
+  weak = false
 
-promiseForDep(namespace, resolutionContext, dep, setupContext) ->
-  // If dep is a string, resolve as namespace
-  if typeof(dep) == "string":
-    childContext = resolutionContext.asRequestingContextFor(dep)
-    return namespace.resolve(childContext)
+  static resolveFunction(f, setupContext) ->
+    f.call(setupContext)
+      .then((result) => this.resolveResource(result, setupContext))
 
-  // If dep is a function, await it and examine its result
-  elif typeof(dep) == "function":
-    dep.call(setupContext)
-      .then((result) ->
-        // If string, resolve as name
-        if typeof(result) == "string":
-          childContext = resolutionContext.asRequestingContextFor(dep)
-          return namespace.resolve(childContext)
-        // If other, treat as the desired resource
-        else:
-          return toResource(result)
-      )
+  static resolveResource(r, setupContext) ->
+    if typeof(r) == "string":
+      { resolutionContext, namespace } = setupContext
+      childContext = resolutionContext.asRequestingContextFor(r)
+      namespace.resolve(childContext)
+    else:
+      Promise.resolve(toResource(r))
 
-  else:
-    Promise.reject(new errors.InternalError(`IoC: Encountered invalid resource specification while resolving ${resolutionContext} - all resource specifications must be functions or strings.`))
+  static weak(dep) ->
+    rst = new this(dep)
+    rst.weak = true
+    rst
+
+  constructor(dep, key) ->
+    if dep instanceof Dependency:
+      this.copy(dep)
+    else:
+      this.dependency = dep
+    if key: this.key = key
+
+  copy(other): void ->
+    Object.assign(this, other)
+
+  resolve(setupContext) ->
+    if typeof(this.dependency) == 'function':
+      this.constructor.resolveFunction(this.dependency, setupContext)
+    elif typeof(this.dependency) == 'string':
+      this.constructor.resolveResource(this.dependency, setupContext)
+    else:
+      Promise.reject(new errors.InternalError(`Encountered invalid resource specification while resolving ${setupContext.resolutionContext}`))
 
 export setup(namespace, provider, resolutionContext, isTransient) -/>
   debug("Namespace", namespace.name, "setup", resolutionContext.name)
@@ -42,21 +58,17 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
   node = namespace.createDependencyNode()
   node.setResolutionContext(resolutionContext)
   node.isTransient = isTransient
-  setupContext = new SetupContext(resolutionContext, node, provider)
+  setupContext = new SetupContext(resolutionContext, node, provider, namespace)
   // Get collection of dependencies from resource provider
   unresolvedDeps <- callGetDependencies(provider, setupContext)
-  // Resolve them all from the same namespace
-  promises = []
-  keys = [...for key k, val v in (unresolvedDeps or {}):
-    p = promiseForDep(namespace, resolutionContext, v, setupContext)
-    promises.push(p)
-    [k]
-  ]
-  deps <- Promise.all(promises)
+  // Convert to DependencyInfo
+  dis = [...for key k, val v in (unresolvedDeps or {}): [ new Dependency(v, k) ] ]
+  promises = [...for elem di in dis: [di.resolve(setupContext)]]
+  resolved <- Promise.all(promises)
+  strong = [...for idx i, elem di in dis: if not di.weak: [ resolved[i] ]]
+  depMap = {...for idx i, elem di in dis: {[di.key]: resolved[i]}}
   // Inject into dependency node which will refcount all the deps
-  node.injectDependencies(deps)
-  // Create depmap for injection into the resource
-  depMap = { ...for idx i, elem e in deps: {[keys[i]]: e} }
+  node.injectDependencies(strong)
 
   // Create the resource using injectDependencies
   try:
@@ -71,5 +83,5 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
     resource
   catch err:
     // If dependency injection fails, cleanup references we took during init
-    node.teardown()
+    node.teardown().catch((err) -> console.error("Error during destructor cascade", err))
     throw err
