@@ -3,7 +3,7 @@ import { errors } from '@enmeshed/errors'
 import { DependencyNode } from './DependencyNode'
 import { ResolutionContext } from './ResolutionContext'
 import { callIsTransient } from './Provider'
-import { getDependencyNode, Resources, isTransient } from './Resource'
+import { getDependencyNode, Resources } from './Resource'
 import { setup } from './Setup'
 
 deferred = require("p-defer")

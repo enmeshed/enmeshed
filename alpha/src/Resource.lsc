@@ -23,6 +23,9 @@ export callInitializer(rsrc, setupContext) ->
 export getDestructor(rsrc) ->
   rsrc?[destroy$]
 
+export isTransient(rsrc) ->
+  !!(rsrc[dependencyNode$].isTransient)
+
 export { destroy$, init$ }
 
 // Manage references to a collection of resources.
