@@ -1,0 +1,12 @@
+import { toProvider } from './Provider'
+import { Container } from './Namespace'
+
+// Create a provider that resolves to a singleton object.
+// Note that such an object will be stored in the global container and hence
+// not destructed until app termination.
+export singletonProvider(name, singleton) ->
+  toProvider({
+    name
+    injectDependencies() -> Promise.resolve(singleton)
+    init(rsrc): void -/> Container.retain(rsrc)
+  })
