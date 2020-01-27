@@ -1,0 +1,6 @@
+import { Provider } from '..'
+
+class DebugProvider extends Provider:
+  static isTransient(ctx) ->
+    console.log(`${this.providerName} isTransient`)
+    super.isTransient(ctx)

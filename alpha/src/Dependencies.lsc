@@ -1,0 +1,95 @@
+// `Dependencies` represents a list of dependencies a Resource needs
+// to initialize, or a method of obtaining the same asynchronously.
+import { Dependency } from './Dependency'
+import { dependencies$, getDependencies$ } from './Provider'
+
+debug = require("debug")("@enmeshed/alpha")
+
+export class Dependencies:
+  static Dependency = Dependency
+
+  static augmentMap(inputMap) ->
+    {...for key k, val v in inputMap:
+      {[k]: this.Dependency.from(v, k)}
+    }
+
+  // Convert a suitable descriptor into a Dependencies object.
+  static from(val) ->
+    if val instanceof Dependencies:
+      val
+    else:
+      new this(val)
+
+  // Determine the dependencies of a provider
+  static of(provider) ->
+    if provider[dependencies$]:
+      this.from(provider[dependencies$])
+    elif provider[getDependencies$]:
+      this.from(provider[getDependencies$]())
+    else:
+      this.from(null)
+
+  // Create a union of two Dependencies objects. Keyed dependencies
+  // from the second object in the union will override the first.
+  static union(deps1, deps2) ->
+    this.from(deps1).union(this.from(deps2))
+
+  constructor(source) ->
+    this.source = source
+    if typeof(this.source) == "object":
+      this.dependencyMap = this.constructor.augmentMap(this.source)
+    elif not (typeof(this.source) == "function" or this.source~looseEq(null)):
+      throw new Error("Dependencies must be objects, functions, or null.")
+
+  flatten(setupContext) -/>
+    if typeof(this.source) == "object":
+      this
+    else:
+      obj <- this.source.call(setupContext.provider, setupContext)
+      this.constructor.from(obj)
+
+  // Construct new dependencies representing the union of this and the other.
+  union(other): Dependencies ->
+    nextSource = if typeof(this.source) == "object" and typeof(other.source) == "object":
+      // Base case
+      Object.assign({}, this.source, other.source)
+    else:
+      // Recursive case
+      (setupContext) =/>
+        f1 <- this.flatten(setupContext)
+        f2 <- other.flatten(setupContext)
+        f1.union(f2)
+
+    new this.constructor(nextSource)
+
+  // Resolve all dependencies. Returns an object:
+  // {
+  //    resolvedDependencies: Object<string, Resource>
+  //    strongRefs: Array<Resource>
+  // }
+  resolve(setupContext) -/>
+    debug("Dependencies.resolve", setupContext.resolutionContext.name)
+
+    if typeof(this.source) == 'function':
+      debug("Resolving functional dependency list for", setupContext.resolutionContext.name)
+      x <- this.source.call(setupContext.provider, setupContext)
+      nextDeps = this.constructor.from(x)
+      return nextDeps.resolve(setupContext)
+
+    // Special case for empty dependencies
+    if looseEq(this.source, null):
+      return { resolvedDependencies: {}, strongRefs: [] }
+
+    depList = [...for val dep in this.dependencyMap: [dep]]
+    promises = [...for elem dep in depList: [dep.resolve(setupContext)]]
+    resolvedDepList <- Promise.all(promises)
+    strongRefs = [...for idx i, elem dep in depList:
+      if not dep.weak: [ resolvedDepList[i] ]
+    ]
+    resolvedDependencies = {...for idx i, elem dep in depList:
+      { [dep.key]: resolvedDepList[i] }
+    }
+    return {
+      resolvedDependencies
+      strongRefs
+    }

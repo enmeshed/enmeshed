@@ -1,0 +1,41 @@
+import { Provider, Container, Namespace, Dependencies } from '..'
+deferred = require('p-defer')
+
+namespace = new Namespace("union")
+container = new Container(namespace)
+
+class P0 extends Provider:
+  static providerName = "P0"
+
+  constructor(deps, context) ->
+    super(deps, context)
+    console.log(`${this.constructor.providerName} constructor: deps ${Object.keys(deps)}`)
+
+  init() ->
+    console.log(`${this.constructor.providerName}.init`)
+    def = deferred()
+    setTimeout(-> def.resolve(), 1000)
+    def.promise
+
+  destroy() ->
+    console.log(`${this.constructor.providerName}.destroy`)
+
+class P1 extends P0:
+  static providerName = "P1"
+  static dependencies = Dependencies.union(super.dependencies, {"P0": "P0"})
+
+class P2 extends P1:
+  static providerName = "P2"
+  static dependencies = Dependencies.union(super.dependencies, -/> {"P1": "P1"})
+
+container.provide(P0)
+container.provide(P1)
+container.provide(P2)
+
+test! 'union', -/>
+  <- container.get("P2")
+  console.log("Got em boys")
+
+afterAll! -/>
+  <- container.clear()
+  console.log("final destruction complete, remaining resources", namespace.names)

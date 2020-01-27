@@ -1,6 +1,5 @@
-import { errors } from '@enmeshed/errors'
-import { callGetDependencies, callInjectDependencies, callProviderInitializer } from './Provider'
-import { toResource, setDependencyNode, callInitializer } from './Resource'
+import { callInjectDependencies, callProviderInitializer } from './Provider'
+import { setDependencyNode } from './Resource'
 
 debug = require("debug")("@enmeshed/alpha")
 
@@ -14,71 +13,33 @@ class SetupContext:
   getNameArg() ->
     this.resolutionContext.nameArg
 
-export class Dependency:
-  weak = false
-
-  static resolveFunction(f, setupContext) ->
-    f.call(setupContext)
-      .then((result) => this.resolveResource(result, setupContext))
-
-  static resolveResource(r, setupContext) ->
-    if typeof(r) == "string":
-      { resolutionContext, namespace } = setupContext
-      childContext = resolutionContext.asRequestingContextFor(r)
-      namespace.resolve(childContext)
-    else:
-      Promise.resolve(toResource(r))
-
-  static weak(dep) ->
-    rst = new this(dep)
-    rst.weak = true
-    rst
-
-  constructor(dep, key) ->
-    if dep instanceof Dependency:
-      this.copy(dep)
-    else:
-      this.dependency = dep
-    if key: this.key = key
-
-  copy(other): void ->
-    Object.assign(this, other)
-
-  resolve(setupContext) ->
-    if typeof(this.dependency) == 'function':
-      this.constructor.resolveFunction(this.dependency, setupContext)
-    elif typeof(this.dependency) == 'string':
-      this.constructor.resolveResource(this.dependency, setupContext)
-    else:
-      Promise.reject(new errors.InternalError(`Encountered invalid resource specification while resolving ${setupContext.resolutionContext}`))
-
 export setup(namespace, provider, resolutionContext, isTransient) -/>
   debug("Namespace", namespace.name, "setup", resolutionContext.name)
+  { Dependencies } = namespace.constructor
+
   // Create associated deptree node
   node = namespace.createDependencyNode()
   node.setResolutionContext(resolutionContext)
+  node.provider = provider
   node.isTransient = isTransient
+  if not isTransient:
+    node.namespace = namespace
+
   setupContext = new SetupContext(resolutionContext, node, provider, namespace)
   // Get collection of dependencies from resource provider
-  unresolvedDeps <- callGetDependencies(provider, setupContext)
-  // Convert to DependencyInfo
-  dis = [...for key k, val v in (unresolvedDeps or {}): [ new Dependency(v, k) ] ]
-  promises = [...for elem di in dis: [di.resolve(setupContext)]]
-  resolved <- Promise.all(promises)
-  strong = [...for idx i, elem di in dis: if not di.weak: [ resolved[i] ]]
-  depMap = {...for idx i, elem di in dis: {[di.key]: resolved[i]}}
+  deps = Dependencies.of(provider)
+  // Resolve deps
+  { resolvedDependencies, strongRefs } <- deps.resolve(setupContext)
   // Inject into dependency node which will refcount all the deps
-  node.injectDependencies(strong)
+  node.injectDependencies(strongRefs)
 
   // Create the resource using injectDependencies
   try:
     debug("Namespace", namespace.name, "injectDependencies", resolutionContext.name)
-    resource <- callInjectDependencies(provider, depMap, setupContext)
-    debug("Namespace", namespace.name, "injectedDependencies", resolutionContext.name)
-    setDependencyNode(resource, node, provider)
+    resource <- callInjectDependencies(provider, resolvedDependencies, setupContext)
+    setDependencyNode(resource, node)
     debug("Namespace", namespace.name, "callInitializer", resolutionContext.name)
-    <- callProviderInitializer(resource, setupContext)
-    <- callInitializer(resource)
+    <- callProviderInitializer(provider, resource, setupContext)
     debug("Namespace", namespace.name, "calledInitializer", resolutionContext.name)
     resource
   catch err:

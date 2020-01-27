@@ -1,4 +1,5 @@
-import { getDestructor, Resources } from './Resource'
+import { Resources } from './Resource'
+import { getDestructor } from './Provider'
 
 debug = require("debug")("@enmeshed/alpha")
 
@@ -7,7 +8,9 @@ export class DependencyNode:
   resource = null
   // The original provider of the owning resource
   provider = null
-
+  // If the resource is nontransient, the namespace where it resides
+  namespace = null
+  // Reference count
   refcount = 0
 
   // Resource dependencies
@@ -35,11 +38,11 @@ export class DependencyNode:
   teardown(): void -/>
     debug("DependencyNode", this.name, "teardown")
     // Tear down owning resource
-    destructor = getDestructor(this.resource)
+    destructor = getDestructor(this.provider)
     if destructor:
       debug("DependencyNode", this.name, "destructor")
       try:
-        <- destructor.call(this.resource)
+        <- destructor.call(this.provider, this.resource)
       catch err:
         // XXX: Destructor error handling
         console.error(err)
@@ -50,6 +53,7 @@ export class DependencyNode:
     this.deps = undefined
     this.resource = undefined
     this.provider = undefined
+    this.namespace = undefined
     this.evictionSites = undefined
     debug("DependencyNode", this.name, "deps cleared")
 

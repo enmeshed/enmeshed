@@ -1,32 +1,18 @@
 import { errors } from '@enmeshed/errors'
 
 dependencyNode$ = Symbol.for("enmeshed.alpha.dependencyNode")
-init$ = Symbol.for("enmeshed.alpha.init")
-destroy$ = Symbol.for("enmeshed.alpha.destroy")
 
 export toResource(x) -> x
 
 export getDependencyNode(rsrc) ->
   rsrc[dependencyNode$]
 
-export setDependencyNode(rsrc, node, provider): void ->
+export setDependencyNode(rsrc, node): void ->
   rsrc[dependencyNode$] = node
   node.resource = rsrc
-  node.provider = provider
-
-export getInitializer(rsrc) ->
-  rsrc[init$]
-
-export callInitializer(rsrc, setupContext) ->
-  if rsrc?[init$]: rsrc[init$](setupContext) else: Promise.resolve(undefined)
-
-export getDestructor(rsrc) ->
-  rsrc?[destroy$]
 
 export isTransient(rsrc) ->
   !!(rsrc[dependencyNode$].isTransient)
-
-export { destroy$, init$ }
 
 // Manage references to a collection of resources.
 export class ResourceCache:

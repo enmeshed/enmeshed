@@ -5,6 +5,7 @@ import { ResolutionContext } from './ResolutionContext'
 import { callIsTransient } from './Provider'
 import { getDependencyNode, Resources } from './Resource'
 import { setup } from './Setup'
+import { Dependencies } from './Dependencies'
 
 deferred = require("p-defer")
 debug = require("debug")("@enmeshed/alpha")
@@ -26,6 +27,9 @@ export class Namespace:
 
   // Class for resolution contexts
   static resolutionContext = ResolutionContext
+
+  // Class for dependencies
+  static Dependencies = Dependencies
 
   // Global namespace. Replace before use (At app initialization) to use
   // a custom Namespace class.
@@ -128,10 +132,13 @@ export class Namespace:
       [arg2, arg1]
 
     if not provider:
-      throw new errors.InternalError("unspecified provider")
+      throw new errors.InternalError("Namespace.provide: a provider was not specified")
 
     if not providerName:
       now providerName = provider.providerName
+      if not providerName:
+        throw new errors.InternalError("Namespace.provide: could not infer name of provider")
+
 
     this._provide(provider, providerName)
 

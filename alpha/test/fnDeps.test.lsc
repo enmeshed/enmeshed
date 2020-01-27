@@ -1,12 +1,17 @@
-import { Provider, Container } from '..'
-
+import { Provider, Container, Namespace } from '..'
 deferred = require('p-defer')
 
 createDelayProvider(n, dep) ->
   class DelayProvider extends Provider:
     static providerName = `delay_${n}`
 
-    static dependencies = if dep: { "dep": dep } else: {}
+    static dependencies() -/>
+      console.log(`DelayProvider(${n}): asynchronously resolving deps`)
+      if dep: {
+        "dep": -/>
+          console.log(`DelayProvider(${n}): asynchronously resolving dep`)
+          dep
+      } else: {}
 
     constructor(deps) ->
       super()
@@ -26,3 +31,13 @@ createDelayProvider(n, dep) ->
 createDelayProvider(1)
 createDelayProvider(2, "delay_1")
 createDelayProvider(3, "delay_2")
+
+let ctr = new Container()
+
+test! 'it works', -/>
+  <- [ctr.get("delay_3"), ctr.get("delay_3")]
+  console.log("Got em boys")
+
+afterAll! -/>
+  <- ctr.clear()
+  console.log("final destruction complete, remaining resources", Namespace.globalNamespace.names)

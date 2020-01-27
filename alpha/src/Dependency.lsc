@@ -1,0 +1,43 @@
+import { errors } from '@enmeshed/errors'
+import { toResource } from './Resource'
+
+export class Dependency:
+  weak = false
+
+  static resolveFunction(f, setupContext) ->
+    f.call(setupContext)
+      .then((result) => this.resolveResource(result, setupContext))
+
+  static resolveResource(r, setupContext) ->
+    if typeof(r) == "string":
+      { resolutionContext, namespace } = setupContext
+      childContext = resolutionContext.asRequestingContextFor(r)
+      namespace.resolve(childContext)
+    else:
+      Promise.resolve(toResource(r))
+
+  static weak(dep) ->
+    rst = new this(dep)
+    rst.weak = true
+    rst
+
+  static from(def, key) ->
+    new this(def, key)
+
+  constructor(dep, key) ->
+    if dep instanceof Dependency:
+      this.copy(dep)
+    else:
+      this.dependency = dep
+    if key: this.key = key
+
+  copy(other): void ->
+    Object.assign(this, other)
+
+  resolve(setupContext) ->
+    if typeof(this.dependency) == 'function':
+      this.constructor.resolveFunction(this.dependency, setupContext)
+    elif typeof(this.dependency) == 'string':
+      this.constructor.resolveResource(this.dependency, setupContext)
+    else:
+      Promise.reject(new errors.InternalError(`Encountered invalid resource specification while resolving ${setupContext.resolutionContext}`))

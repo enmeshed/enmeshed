@@ -10,3 +10,4 @@ Note:
 - Fully asynchronous
 - Works with functional programming
 - Symbolic API means resources and providers can be any JS object or function
+- Made from user-replaceable parts
