@@ -28,12 +28,17 @@ class P2 extends P1:
   static providerName = "P2"
   static dependencies = Dependencies.union(super.dependencies, -/> {"P1": "P1"})
 
+class P3 extends P2:
+  static providerName = "P3"
+  static dependencies = Dependencies.union(super.dependencies, -/> {"P2": "P2"})
+
 container.provide(P0)
 container.provide(P1)
 container.provide(P2)
+container.provide(P3)
 
 test! 'union', -/>
-  <- container.get("P2")
+  <- container.get("P3")
   console.log("Got em boys")
 
 afterAll! -/>
