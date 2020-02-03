@@ -18,7 +18,7 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
   { Dependencies } = namespace.constructor
 
   // Create associated deptree node
-  node = namespace.createDependencyNode()
+  node = new (namespace.constructor.DependencyNode)()
   node.setResolutionContext(resolutionContext)
   node.provider = provider
   node.isTransient = isTransient

@@ -112,8 +112,6 @@ export class Provider:
   constructor(deps, setupContext) ->
     Object.assign(this, deps)
 
-  init() -/>
-    return
+  init() -> Promise.resolve(undefined)
 
-  destroy() -/>
-    return
+  destroy() -> Promise.resolve(undefined)

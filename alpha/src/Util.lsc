@@ -1,5 +1,9 @@
-import { toProvider } from './Provider'
+import { toProvider, Provider } from './Provider'
 import { Container } from './Namespace'
+import { DependencyNode } from './DependencyNode'
+
+debug = require("debug")("@enmeshed/alpha")
+
 
 // Create a provider that resolves to a singleton object.
 // Note that such an object will be stored in the global container and hence
@@ -10,3 +14,29 @@ export singletonProvider(name, singleton) ->
     injectDependencies() -> Promise.resolve(singleton)
     init(rsrc): void -/> Container.retain(rsrc)
   })
+
+// An Alias is a Provider that resolves to another named resource and provides
+// that resource unmodified for its lifecycle. When its lifecycle ends, the
+// Alias is automatically removed; referencing the Alias again will cause
+// a fresh resolution of the original resource.
+export class Alias extends Provider:
+  static injectDependencies(deps, setupContext) -/>
+    { namespace } = setupContext
+    name = setupContext.resolutionContext.name
+    resource <- this.resolveAlias(deps, setupContext)
+
+    node = DependencyNode.of(resource)
+    node.addTeardownHook((node): void ->
+      if namespace.checkName(name) == node.resource:
+        debug("Namespace", namespace.name, "deleting alias", name)
+        namespace.unregisterName(name)
+    )
+
+    resource
+
+  // Init method should always be a no-op as this is only an alias.
+  static init() -> Promise.resolve(undefined)
+
+  // Called each time the alias needs to be resolved.
+  static resolveAlias(deps, setupContext) ->
+    Promise.reject(new Error("Alias:resolveAlias() is an abstract method."))

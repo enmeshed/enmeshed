@@ -1,9 +1,13 @@
-import { Resources } from './Resource'
+import { Resources, getDependencyNode } from './Resource'
 import { getDestructor } from './Provider'
 
 debug = require("debug")("@enmeshed/alpha")
 
 export class DependencyNode:
+  // Get dependency node for a resource
+  static of(resource) ->
+    getDependencyNode(resource)
+
   // The owning resource
   resource = null
   // The original provider of the owning resource
@@ -47,24 +51,25 @@ export class DependencyNode:
         // XXX: Destructor error handling
         console.error(err)
 
+    // Execute all teardown hooks
+    if this.teardownHooks:
+      for elem hook in this.teardownHooks:
+        try:
+          hook(this)
+        catch err:
+          // XXX: destructor error handling
+          console.error(err)
+
     // Deref all deps and release internal references
     debug("DependencyNode", this.name, "deps.clear()")
     <- this.deps.clear()
     this.deps = undefined
+    debug("DependencyNode", this.name, "deps cleared")
+
     this.resource = undefined
     this.provider = undefined
     this.namespace = undefined
     this.evictionSites = undefined
-    debug("DependencyNode", this.name, "deps cleared")
-
-    // Execute all teardown hooks
-    try:
-      if this.teardownHooks:
-        for elem hook in this.teardownHooks: hook(this)
-    catch err:
-      // XXX: destructor error handling
-      console.error(err)
-
     this.teardownHooks = undefined
 
   injectDependencies(deps): void ->

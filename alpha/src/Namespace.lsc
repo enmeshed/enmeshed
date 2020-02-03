@@ -23,7 +23,7 @@ export class Namespace:
   names = {}
 
   // Class for dep nodes
-  static dependencyNode = DependencyNode
+  static DependencyNode = DependencyNode
 
   // Class for resolution contexts
   static resolutionContext = ResolutionContext
@@ -50,10 +50,6 @@ export class Namespace:
   delegateDownward(resolutionContext): Namespace ->
     null
 
-  // Create a blank dependency node for a resource within this namespace.
-  createDependencyNode() ->
-    new (this.constructor.dependencyNode)()
-
   _unregister(node): void ->
     if node.name:
       debug("Namespace", this.name, "_unregister", node.name)
@@ -65,6 +61,13 @@ export class Namespace:
       throw new errors.InternalError(`provider named '${providerName}' already exists`)
     debug("Namespace", this.name, "_provide providing", providerName)
     this.providers[providerName] = provider
+
+  unregisterName(name): void ->
+    if name:
+      this.names[name] = undefined
+
+  checkName(name) ->
+    if name and this.names[name]: this.names[name] else: undefined
 
   resolve(resolutionContext) -/>
     // Handle string args.
