@@ -6,6 +6,7 @@ import { CommonError } from '@enmeshed/errors'
 debug = require("debug")("@enmeshed/alpha")
 
 export class SetupError extends CommonError:
+  static className = "SetupError"
   constructor(resolutionContext, cause) ->
     super(`Error while setting up resource [ ${resolutionContext._dump()} ]`, cause)
     this.resolutionContext = resolutionContext
@@ -64,6 +65,7 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
     debug("Resource [", resolutionContext._dump(), "] - SETUP COMPLETE")
     resource
   catch err:
+    debug("Resource [", resolutionContext._dump(), "] - SETUP FAILED -", err)
     // If dependency injection fails, cleanup references we took during init
     node.teardown().catch((err) -> console.error("Error during destructor cascade", err))
     throw new SetupError(resolutionContext, err)
