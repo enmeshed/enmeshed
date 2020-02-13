@@ -43,7 +43,7 @@ export class DependencyNode:
     debug("DependencyNode for [", this.name, "] - teardown")
     // Tear down owning resource
     destructor = getDestructor(this.provider)
-    if destructor:
+    if destructor and this.resource:
       debug("DependencyNode for [", this.name, "] - destructor")
       try:
         <- destructor.call(this.provider, this.resource)
