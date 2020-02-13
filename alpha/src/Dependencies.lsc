@@ -36,7 +36,7 @@ export class Dependencies:
 
   constructor(source) ->
     this.source = source
-    if typeof(this.source) == "object":
+    if this.source and (typeof(this.source) == "object"):
       this.dependencyMap = this.constructor.augmentMap(this.source)
     elif not (typeof(this.source) == "function" or this.source~looseEq(null)):
       throw new Error("Dependencies must be objects, functions, or null.")
