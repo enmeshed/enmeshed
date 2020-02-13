@@ -6,3 +6,4 @@ export { getDependencies$, dependencies$, injectDependencies$, isTransient$, ini
 export { splitName, ResolutionContext } from './ResolutionContext'
 export { Resources, ResourceCache, ResourceMap, isTransient, getDependencyNode, setDependencyNode } from './Resource'
 export { singletonProvider, Alias } from './Util'
+export { SetupError } from './Setup'

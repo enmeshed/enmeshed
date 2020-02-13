@@ -1,8 +1,14 @@
 import { callInjectDependencies, callProviderInitializer } from './Provider'
 import { setDependencyNode } from './Resource'
 import { ResolutionContext } from './ResolutionContext'
+import { CommonError } from '@enmeshed/errors'
 
 debug = require("debug")("@enmeshed/alpha")
+
+export class SetupError extends CommonError:
+  constructor(resolutionContext, cause) ->
+    super(`Error while setting up resource [ ${resolutionContext._dump()} ]`, cause)
+    this.resolutionContext = resolutionContext
 
 class SetupContext:
   constructor(resolutionContext, dependencyNode, provider, namespace) ->
@@ -60,4 +66,4 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
   catch err:
     // If dependency injection fails, cleanup references we took during init
     node.teardown().catch((err) -> console.error("Error during destructor cascade", err))
-    throw err
+    throw new SetupError(resolutionContext, err)
