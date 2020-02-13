@@ -52,14 +52,14 @@ export class Namespace:
 
   _unregister(node): void ->
     if node.name:
-      debug("Namespace", this.name, "_unregister", node.name)
+      debug("Namespace:", this.name, "- unregister", node.name)
       this.names[node.name] = undefined
 
   // Register a provider
   _provide(provider, providerName) ->
     if this.providers[providerName]:
       throw new errors.InternalError(`provider named '${providerName}' already exists`)
-    debug("Namespace", this.name, "_provide providing", providerName)
+    debug("Namespace:", this.name, "- registered provider", providerName)
     this.providers[providerName] = provider
 
   unregisterName(name): void ->
@@ -73,16 +73,18 @@ export class Namespace:
     // Handle string args.
     if typeof(resolutionContext) == 'string':
       if this.names[resolutionContext]:
-        debug("Namespace", this.name, "resolve earlyOut", resolutionContext)
-        return this.names[resolutionContext]
+        result = this.names[resolutionContext]
+        debug("Namespace:", this.name, "- early resolution for [", resolutionContext, "] as", result)
+        return result
       now resolutionContext = new (this.constructor.resolutionContext)(resolutionContext)
 
     // Early out if resolution already pending or complete.
     { name } = resolutionContext
     debugInfo = resolutionContext._dump()
     if this.names[name]:
-      debug("Namespace", this.name, "resolve earlyOut", debugInfo)
-      return this.names[name]
+      result = this.names[name]
+      debug("Namespace:", this.name, "- early resolution for [", debugInfo, "] as", result)
+      return result
 
     // Delegate downward
     dd = this.delegateDownward(resolutionContext)
@@ -100,12 +102,12 @@ export class Namespace:
       // Determine if resource is transient
       if callIsTransient(provider, resolutionContext):
         // If so, perform direct resource creation
-        debug("Namespace", this.name, "creating transient", debugInfo)
+        debug("Namespace:", this.name, "- creating transient [", debugInfo, "]")
         return setup(this, provider, resolutionContext, true)
       else:
         // Prevent races by ensuring future attempts to resolve the same
         // nontransient resource all get the same promise.
-        debug("Namespace", this.name, "creating persistent", debugInfo)
+        debug("Namespace:", this.name, "- creating persistent [", debugInfo, "]")
         def = deferred()
         this.names[name] = def.promise
         try:
@@ -114,6 +116,7 @@ export class Namespace:
           // Add teardown hook to resource to unregister it from the namespace
           // should it be destroyed.
           node.addTeardownHook(this._unregister.bind(this))
+          debug("Namespace:", this.name, "- resolving promises for [", debugInfo, "]")
           def.resolve(resource)
         catch err:
           def.reject(err)
@@ -167,7 +170,7 @@ export class Container:
 
   static retain(resource): void ->
     node = getDependencyNode(resource)
-    debug("Container - global container is retaining", node.name)
+    debug("Container: global - is retaining", node.name)
     this.add(resource)
 
   static add(...resources) ->

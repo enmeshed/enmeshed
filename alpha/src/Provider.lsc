@@ -27,11 +27,11 @@ export createProvider(spec) ->
   provider = {}
   if spec.dependencies:
     deps = spec.dependencies
-    provider[getDependencies$] = -/> deps
+    provider[getDependencies$] = -> deps
   elif spec.getDependencies:
     provider[getDependencies$] = spec.getDependencies
   else:
-    provider[getDependencies$] = -/> null
+    provider[getDependencies$] = -> null
 
   if spec.injectDependencies:
     provider[injectDependencies$] = spec.injectDependencies
@@ -55,11 +55,11 @@ export createProvider(spec) ->
 // Like createProvider, but mutates the spec, preserving `this`
 export toProvider(spec) ->
   if spec.dependencies:
-    spec[getDependencies$] = -/> this.dependencies
+    spec[getDependencies$] = -> this.dependencies
   elif spec.getDependencies:
     spec[getDependencies$] = spec.getDependencies
   else:
-    spec[getDependencies$] = -/> null
+    spec[getDependencies$] = -> null
 
   if spec.injectDependencies:
     spec[injectDependencies$] = spec.injectDependencies

@@ -40,11 +40,11 @@ export class DependencyNode:
       this.evictionSites.delete(site)
 
   teardown(): void -/>
-    debug("DependencyNode", this.name, "teardown")
+    debug("DependencyNode for [", this.name, "] - teardown")
     // Tear down owning resource
     destructor = getDestructor(this.provider)
     if destructor:
-      debug("DependencyNode", this.name, "destructor")
+      debug("DependencyNode for [", this.name, "] - destructor")
       try:
         <- destructor.call(this.provider, this.resource)
       catch err:
@@ -61,10 +61,10 @@ export class DependencyNode:
           console.error(err)
 
     // Deref all deps and release internal references
-    debug("DependencyNode", this.name, "deps.clear()")
+    debug("DependencyNode for [", this.name, "] - clearing deps")
     <- this.deps.clear()
     this.deps = undefined
-    debug("DependencyNode", this.name, "deps cleared")
+    debug("DependencyNode for [", this.name, "] - cleared deps")
 
     this.resource = undefined
     this.provider = undefined
@@ -77,7 +77,7 @@ export class DependencyNode:
 
   deref() ->
     this.refcount--
-    debug("DependencyNode", this.name, "deref - refcount", this.refcount)
+    debug("DependencyNode for [", this.name, "] - deref, refcount is", this.refcount)
     if this.refcount < 1:
       this.teardown().catch((err) ->
         // XXX: destructor error handling
@@ -86,9 +86,12 @@ export class DependencyNode:
     else:
       return Promise.resolve(undefined)
 
+  safeDeref(): void ->
+    this.deref().catch(-> return)
+
   ref(): void ->
     this.refcount++
-    debug("DependencyNode", this.name, "ref - refcount", this.refcount)
+    debug("DependencyNode for [", this.name, "] - ref, refcount is", this.refcount)
 
   isReferenced(): boolean ->
     this.refcount > 0

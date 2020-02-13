@@ -68,16 +68,18 @@ export class Dependencies:
   //    strongRefs: Array<Resource>
   // }
   resolve(setupContext) -/>
-    debug("Dependencies.resolve", setupContext.resolutionContext.name)
+    debugInfo = setupContext.resolutionContext._dump()
+    debug("Resource [", debugInfo, "] - Dependencies.resolve()")
 
     if typeof(this.source) == 'function':
-      debug("Resolving functional dependency list for", setupContext.resolutionContext.name)
+      debug("Resolving functional dependency list for", debugInfo)
       x <- this.source.call(setupContext.provider, setupContext)
       nextDeps = this.constructor.from(x)
       return nextDeps.resolve(setupContext)
 
     // Special case for empty dependencies
     if looseEq(this.source, null):
+      debug("Resource [", debugInfo, "] - resolved EMPTY dependencies")
       return { resolvedDependencies: {}, strongRefs: [] }
 
     depList = [...for val dep in this.dependencyMap: [dep]]
@@ -89,6 +91,9 @@ export class Dependencies:
     resolvedDependencies = {...for idx i, elem dep in depList:
       { [dep.key]: resolvedDepList[i] }
     }
+
+    debug("Resource [", debugInfo, "] - resolved dependencies", Object.keys(resolvedDependencies))
+
     return {
       resolvedDependencies
       strongRefs

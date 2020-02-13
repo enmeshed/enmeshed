@@ -1,5 +1,6 @@
 import { callInjectDependencies, callProviderInitializer } from './Provider'
 import { setDependencyNode } from './Resource'
+import { ResolutionContext } from './ResolutionContext'
 
 debug = require("debug")("@enmeshed/alpha")
 
@@ -13,8 +14,22 @@ class SetupContext:
   getNameArg() ->
     this.resolutionContext.nameArg
 
+export resolveTransient(namespace, tmpName, dependencies) -/>
+  { Dependencies } = namespace.constructor
+  fakeProvider = {}
+  node = new (namespace.constructor.DependencyNode)()
+  resolutionContext = new ResolutionContext(tmpName)
+  node.setResolutionContext(resolutionContext)
+  node.provider = fakeProvider
+  node.isTransient = true
+
+  setupContext = new SetupContext(resolutionContext, node, fakeProvider, namespace)
+  { resolvedDependencies, strongRefs } <- Dependencies.from(dependencies).resolve(setupContext)
+  node.injectDependencies(strongRefs)
+
+
 export setup(namespace, provider, resolutionContext, isTransient) -/>
-  debug("Namespace", namespace.name, "setup", resolutionContext.name)
+  debug("Resource [", resolutionContext._dump(), "] - SETUP BEGIN")
   { Dependencies } = namespace.constructor
 
   // Create associated deptree node
@@ -35,12 +50,12 @@ export setup(namespace, provider, resolutionContext, isTransient) -/>
 
   // Create the resource using injectDependencies
   try:
-    debug("Namespace", namespace.name, "injectDependencies", resolutionContext.name)
+    debug("Resource [", resolutionContext._dump(), "] - dependencies resolved, proceeding to injectDependencies")
     resource <- callInjectDependencies(provider, resolvedDependencies, setupContext)
     setDependencyNode(resource, node)
-    debug("Namespace", namespace.name, "callInitializer", resolutionContext.name)
+    debug("Resource [", resolutionContext._dump(), "] - callInitializer")
     <- callProviderInitializer(provider, resource, setupContext)
-    debug("Namespace", namespace.name, "calledInitializer", resolutionContext.name)
+    debug("Resource [", resolutionContext._dump(), "] - SETUP COMPLETE")
     resource
   catch err:
     // If dependency injection fails, cleanup references we took during init
