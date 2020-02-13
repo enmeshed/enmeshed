@@ -74,7 +74,7 @@ export class Namespace:
     if typeof(resolutionContext) == 'string':
       if this.names[resolutionContext]:
         result = this.names[resolutionContext]
-        debug("Namespace:", this.name, "- early resolution for [", resolutionContext, "] as", result)
+        debug("Namespace:", this.name, "- early resolution for [", resolutionContext, "]")
         return result
       now resolutionContext = new (this.constructor.resolutionContext)(resolutionContext)
 
@@ -83,7 +83,7 @@ export class Namespace:
     debugInfo = resolutionContext._dump()
     if this.names[name]:
       result = this.names[name]
-      debug("Namespace:", this.name, "- early resolution for [", debugInfo, "] as", result)
+      debug("Namespace:", this.name, "- early resolution for [", debugInfo, "]")
       return result
 
     // Delegate downward
