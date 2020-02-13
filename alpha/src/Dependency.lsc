@@ -1,16 +1,22 @@
 import { errors } from '@enmeshed/errors'
 import { toResource } from './Resource'
 
+debug = require("debug")("@enmeshed/alpha")
+
 export class Dependency:
   weak = false
 
   static resolveFunction(f, setupContext) ->
-    f.call(setupContext)
-      .then((result) => this.resolveResource(result, setupContext))
+    ret = f(setupContext)
+    if ret instanceof Promise:
+      ret.then((result) => this.resolveResource(result, setupContext))
+    else:
+      this.resolveResource(ret, setupContext)
 
   static resolveResource(r, setupContext) ->
     if typeof(r) == "string":
       { resolutionContext, namespace } = setupContext
+      debug("Resource [",resolutionContext._dump(),"] - resolving Dependency named", r)
       childContext = resolutionContext.asRequestingContextFor(r)
       namespace.resolve(childContext)
     else:
