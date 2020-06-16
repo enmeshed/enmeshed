@@ -7,10 +7,15 @@ export splitName(name) ->
 
 export class ResolutionContext:
   constructor(name) ->
-    this.name = name
-    [providerName, nameArg] = splitName(name)
-    this.providerName = providerName
-    this.nameArg = nameArg
+    if name:
+      this.name = name
+      [providerName, nameArg] = splitName(name)
+      this.providerName = providerName
+      this.nameArg = nameArg
+    else:
+      this.name = "(anonymous)"
+      this.providerName = "(anonymous)"
+      this.nameArg = "(anonymous)"
 
   clone() ->
     next = new this.constructor(this.name)

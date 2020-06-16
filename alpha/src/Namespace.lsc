@@ -26,7 +26,8 @@ export class Namespace:
   static DependencyNode = DependencyNode
 
   // Class for resolution contexts
-  static resolutionContext = ResolutionContext
+  static resolutionContext = ResolutionContext // legacy
+  static ResolutionContext = ResolutionContext
 
   // Class for dependencies
   static Dependencies = Dependencies
