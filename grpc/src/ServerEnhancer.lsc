@@ -21,9 +21,9 @@ dispatchNodeCallback(requestContext, callback) ->
     else:
       callback(null, result)
 
-wrapUnaryHandler(serverEnhancer, methodName, unaryHandler) ->
+wrapUnaryHandler(serverEnhancer, methodName, fqn, unaryHandler) ->
   grpcUnaryHandler(call, callback): void -/>
-    requestContext = new ServerRequestContext(serverEnhancer, 'unary', methodName)
+    requestContext = new ServerRequestContext(serverEnhancer, 'unary', methodName, fqn)
     requestContext.call = call
     requestContext.metadata = call.metadata
 
@@ -36,9 +36,9 @@ wrapUnaryHandler(serverEnhancer, methodName, unaryHandler) ->
     dispatchNodeCallback(requestContext, callback)
     serverEnhancer.requestDidEnd(requestContext)
 
-wrapRequestStreamHandler(serverEnhancer, methodName, rsHandler) ->
+wrapRequestStreamHandler(serverEnhancer, methodName, fqn, rsHandler) ->
   grpcRequestStreamHandler(stream, callback): void -/>
-    requestContext = new ServerRequestContext(serverEnhancer, 'requestStream', methodName)
+    requestContext = new ServerRequestContext(serverEnhancer, 'requestStream', methodName, fqn)
     requestContext.metadata = stream.metadata
 
     try:
@@ -50,9 +50,9 @@ wrapRequestStreamHandler(serverEnhancer, methodName, rsHandler) ->
     dispatchNodeCallback(requestContext, callback)
     serverEnhancer.requestDidEnd(requestContext)
 
-wrapResponseStreamGenerator(serverEnhancer, methodName, responseGenerator) ->
+wrapResponseStreamGenerator(serverEnhancer, methodName, fqn, responseGenerator) ->
   grpcResponseStreamHandler(stream): void -/>
-    requestContext = new ServerRequestContext(serverEnhancer, 'responseStream', methodName)
+    requestContext = new ServerRequestContext(serverEnhancer, 'responseStream', methodName, fqn)
     requestContext.metadata = stream.metadata
 
     try:
@@ -127,11 +127,13 @@ export class ServerEnhancer:
       if not methodDef:
         throw new Error(`ServerEnhancer.addService: service has no method named ${name}`)
 
+      fqn = `${serviceDef.name}/${name}`
+
       // Wrap async handlers
       {[name]: match classifyMethod(methodDef):
-        | 'unary': wrapUnaryHandler(this, name, handler)
-        | 'requestStream': wrapRequestStreamHandler(this, name, handler)
-        | 'responseStream': wrapResponseStreamGenerator(this, name, handler)
+        | 'unary': wrapUnaryHandler(this, name, fqn, handler)
+        | 'requestStream': wrapRequestStreamHandler(this, name, fqn, handler)
+        | 'responseStream': wrapResponseStreamGenerator(this, name, fqn, handler)
         | 'bidirectionalStream': this._wrapBidiStream(handler)
         | else: throw new Error("invalid method definition " + name)
       }

@@ -13,9 +13,13 @@ export class RequestContext:
   // Method name for this request
   methodName = null
 
-  constructor(requestType, methodName) ->
+  // Fully qualified method name, including protobuf package and service name
+  fqMethodName = null
+
+  constructor(requestType, methodName, fqMethodName) ->
     this.requestType = requestType
     this.methodName = methodName
+    this.fqMethodName = fqMethodName
 
 handleMetadata(metadata) ->
   if not metadata:
@@ -35,6 +39,6 @@ export class ClientRequestContext extends RequestContext:
     this.metadata = handleMetadata(metadata)
 
 export class ServerRequestContext extends RequestContext:
-  constructor(server, requestType, methodName) ->
-    super(requestType, methodName)
+  constructor(server, requestType, methodName, fqMethodName) ->
+    super(requestType, methodName, fqMethodName)
     this.server = server
