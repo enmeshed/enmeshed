@@ -127,7 +127,7 @@ export class ServerEnhancer:
       if not methodDef:
         throw new Error(`ServerEnhancer.addService: service has no method named ${name}`)
 
-      fqn = `${serviceDef.name}/${name}`
+      fqn = `${methodDef.serviceName}/${name}`
 
       // Wrap async handlers
       {[name]: match classifyMethod(methodDef):
