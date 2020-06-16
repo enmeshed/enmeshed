@@ -33,6 +33,7 @@ export class MethodDefinition:
       originalName: camelCase(pbjsMethod.name)
       requestType: requestType
       responseType: responseType
+      serviceName: fqServiceName
       _method: pbjsMethod
     })
     this.classification = classifyMethod(this)
