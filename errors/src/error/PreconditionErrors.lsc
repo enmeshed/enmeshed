@@ -19,6 +19,16 @@ export class InvalidArgumentError extends PreconditionError:
     if argument:
       this.addDetail((new BadRequest()).addViolation(argument, reason))
 
+export class MissingArgumentError extends InvalidArgumentError:
+  static className = "MissingArgumentError"
+  httpStatus = 400
+  gRPCStatus = "INVALID_ARGUMENT"
+
+  constructor(argument, cause) ->
+    super(`${argument}: missing`, cause)
+    if argument:
+      this.addDetail((new BadRequest()).addViolation(argument, "missing"))
+
 // A precondition related to system state was not satisfied.
 export class FailedPreconditionError extends PreconditionError:
   static className = "FailedPreconditionError"
