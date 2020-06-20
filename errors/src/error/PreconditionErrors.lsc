@@ -24,10 +24,8 @@ export class MissingArgumentError extends InvalidArgumentError:
   httpStatus = 400
   gRPCStatus = "INVALID_ARGUMENT"
 
-  constructor(argument, cause) ->
-    super(`${argument}: missing`, cause)
-    if argument:
-      this.addDetail((new BadRequest()).addViolation(argument, "missing"))
+  constructor(argument, reason, cause) ->
+    super(argument, if reason: `missing: ${reason}` else: "missing", cause)
 
 // A precondition related to system state was not satisfied.
 export class FailedPreconditionError extends PreconditionError:
