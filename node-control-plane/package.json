@@ -1,6 +1,6 @@
 {
   "name": "@enmeshed/node-control-plane",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -29,7 +29,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/grpc": "^0.2.5",
+    "@enmeshed/grpc": "^0.2.6",
     "debug": "^4.1.1",
     "object-hash": "^1.3.1"
   },
