@@ -23,12 +23,18 @@ export { deferred }
 
 // Convert a google protobuf struct to plain JSON
 export structToJson(protoStruct, recurse = true) ->
-  {...for key k, val protoVal in protoStruct.fields:
-    {[k]: valToJson(protoVal, recurse)}
-  }
+  if not protoStruct?.fields:
+    {}
+  else:
+    {...for key k, val protoVal in protoStruct.fields:
+      {[k]: valToJson(protoVal, recurse)}
+    }
 
 listToJson(protoList) ->
-  [...for elem protoVal in protoList.values: [valToJson(protoVal)]]
+  if not protoList?.values:
+    []
+  else:
+    [...for elem protoVal in protoList.values: [valToJson(protoVal)]]
 
 valToJson(protoVal, recurse) ->
   if 'nullValue' in protoVal:
