@@ -1,0 +1,77 @@
+import { ClientEnhancer } from '../..'
+import { ClientServerContainer } from '../clientServerContainer'
+import cuid from 'cuid'
+{ setLogger, logVerbosity, setLogVerbosity } = require('@grpc/grpc-js')
+
+debug = require('debug')('@enmeshed/grpc:test')
+grpcLogs = require('debug')('@enmeshed/GRPC-LOGS')
+
+setLogger({
+  error(...args): void -> grpcLogs(...args)
+})
+setLogVerbosity(logVerbosity.DEBUG)
+
+testPath = 'test/responseStream'
+testServiceName = 'ResponseStreamService'
+
+class InstrumentedClientEnhancer extends ClientEnhancer:
+  requestWillBegin(ctx) ->
+    ctx.id = cuid()
+
+container = new ClientServerContainer(InstrumentedClientEnhancer)
+let client, server, serverLogs = []
+
+bindings = {
+  responseStream(req) -*/>
+    debug("began responseStream")
+    yield { message: 'server stream echo: '}
+    if req.message == 'fail':
+      debug("responseStream sending failure")
+      throw new Error("failed call")
+    debug("responseStream sending reply")
+    yield { message: req.message }
+    debug("responseStream finished")
+}
+
+beforeEach(-> now serverLogs = [])
+
+beforeAll(
+  -/>
+    try:
+      container.protos.addProtoPath(testPath)
+
+      container.server.addService(
+        <- container.protos.service(testServiceName)
+        bindings
+      )
+
+      <- container.start()
+
+      now server = container.server
+      now client <- container.getClient(testServiceName)
+    catch err:
+      console.error('STARTUP ERROR', err)
+)
+
+afterAll(
+  -/>
+    try:
+      <- container.stop()
+    catch err:
+      console.error('SHUTDOWN ERROR', err)
+)
+
+test! "responseStream", -/>
+  stream <- client.responseStream({ message: "hello world" })
+  let str = ''
+  for await (packet of stream): now str += packet.message
+  expect(str).toBe('server stream echo: hello world')
+
+test! "responseStream error", -/>
+  stream <- client.responseStream({ message: "fail" })
+  try:
+    let str = ''
+    for await (packet of stream): now str += packet.message
+    throw new Error("shouldnt get here")
+  catch err:
+    expect(err.details).toBe("failed call")

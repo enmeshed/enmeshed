@@ -1,0 +1,133 @@
+import { ClientEnhancer, StreamHandler } from '../..'
+import { ClientServerContainer } from '../clientServerContainer'
+import cuid from 'cuid'
+{ setLogger, logVerbosity, setLogVerbosity } = require('@grpc/grpc-js')
+
+debug = require('debug')('@enmeshed/grpc:test')
+grpcLogs = require('debug')('@enmeshed/GRPC-LOGS')
+
+setLogger({
+  error(...args): void -> grpcLogs(...args)
+})
+setLogVerbosity(logVerbosity.DEBUG)
+
+testPath = 'test/bidirectionalStream'
+testServiceName = 'BidirectionalStreamService'
+
+class InstrumentedClientEnhancer extends ClientEnhancer:
+  requestWillBegin(ctx) ->
+    ctx.id = cuid()
+
+container = new ClientServerContainer(InstrumentedClientEnhancer)
+let client, server, serverLogs = []
+
+bindings = {
+  bidirectionalStream:
+    class BidirectionalStreamHandler extends StreamHandler:
+      start() ->
+        debug('bidirectionalStream server start')
+        serverLogs.push(['start'])
+        this.write({ message: 'welcome' })
+
+      error(err, isInternal) ->
+        debug('bidirectionalStream server', isInternal ? 'internal': '', 'error', err)
+        serverLogs.push(['error', isInternal, err])
+
+      data(packet) -/>
+        { message } = packet
+        serverLogs.push(['received', packet])
+        debug('bidirectionalStream server received', message)
+        if message == 'fail':
+          throw new Error('failed call')
+        else:
+          resp = { message: 'echo: ' + message }
+          serverLogs.push(['sent', resp])
+          debug('bidirectionalStream server sending', resp)
+          resp
+
+      hangup() ->
+        serverLogs.push(['hangup'])
+        debug('bidirectionalStream server: client hung up')
+        this.end()
+}
+
+beforeEach(-> now serverLogs = [])
+afterEach(-> debug('serverLogs', serverLogs))
+
+beforeAll(
+  -/>
+    try:
+      container.protos.addProtoPath(testPath)
+
+      container.server.addService(
+        <- container.protos.service(testServiceName)
+        bindings
+      )
+
+      <- container.start()
+
+      now server = container.server
+      now client <- container.getClient(testServiceName)
+    catch err:
+      console.error('STARTUP ERROR', err)
+)
+
+afterAll(
+  -/>
+    try:
+      <- container.stop()
+    catch err:
+      console.error('SHUTDOWN ERROR', err)
+)
+
+test! "bidiStream", -/>
+  handler = client.bidirectionalStream(StreamHandler.with({
+    start() ->
+      this.responses = []
+      this.write({ message: 'hello' })
+      this.write({ message: 'world' })
+      this.end()
+
+    data(packet) ->
+      this.responses.push(packet.message)
+  }))
+
+  await handler.closedPromise()
+  debug('server hung up')
+  expect(handler.responses).toEqual(['welcome', 'echo: hello', 'echo: world'])
+
+test! "bidiStream client error", -/>
+  handler = client.bidirectionalStream(StreamHandler.with({
+    error(err, isInternal) ->
+      debug("bidiStream client: error:", isInternal, err)
+    data(packet) -/>
+      throw new Error("client stream fail")
+  }))
+
+  try:
+    await handler.closedPromise()
+    throw new Error("shouldnt get here")
+  catch err:
+    expect(err.message).toBe("client stream fail")
+
+test! "bidiStream server error", -/>
+  handler = client.bidirectionalStream(StreamHandler.with({
+    start() ->
+      this.responses = []
+      this.write({ message: 'hello' })
+      this.write({ message: 'fail' })
+      this.end()
+
+    error(err, isInternal) ->
+      this.error = err
+      debug("bidiStream client: error:", isInternal, err)
+
+    data(packet) -/>
+      this.responses.push(packet.message)
+  }))
+
+  try:
+    await handler.closedPromise()
+    throw new Error("shouldnt get here")
+  catch err:
+    expect(err.details).toBe("failed call")

@@ -1,0 +1,98 @@
+import { ClientEnhancer } from '../..'
+import { ClientServerContainer } from '../clientServerContainer'
+import cuid from 'cuid'
+{ setLogger, logVerbosity, setLogVerbosity } = require('@grpc/grpc-js')
+
+debug = require('debug')('@enmeshed/grpc:test')
+grpcLogs = require('debug')('@enmeshed/GRPC-LOGS')
+
+setLogger({
+  error(...args): void -> grpcLogs(...args)
+})
+setLogVerbosity(logVerbosity.DEBUG)
+
+testPath = 'test/requestStream'
+testServiceName = 'RequestStreamService'
+
+class InstrumentedClientEnhancer extends ClientEnhancer:
+  requestWillBegin(ctx) ->
+    ctx.id = cuid()
+
+container = new ClientServerContainer(InstrumentedClientEnhancer)
+let client, server
+
+bindings = {
+  clientStream(reqStream) -/>
+    debug('server for clientStream: entering handler')
+    let str = ''
+    for await (buf of reqStream):
+      debug('server for clientStream: got packet', buf.message)
+      msg = buf.message
+      if msg == 'fail':
+        debug('server for clientStream: returning failed call')
+        throw new Error('failed call')
+      now str += buf.message
+    debug('server for clientStream: exiting for-await loop and returning response')
+    { message: 'stream concatenated: ' + str }
+}
+
+beforeAll(
+  -/>
+    try:
+      container.protos.addProtoPath(testPath)
+
+      container.server.addService(
+        <- container.protos.service(testServiceName)
+        bindings
+      )
+
+      <- container.start()
+
+      now server = container.server
+      now client <- container.getClient(testServiceName)
+    catch err:
+      console.error('STARTUP ERROR', err)
+)
+
+afterAll(
+  -/>
+    try:
+      <- container.stop()
+    catch err:
+      console.error('SHUTDOWN ERROR', err)
+)
+
+test! "clientStream", -/>
+  debug("------------------------------ beginning test: clientStream")
+  gen = () -*/>
+    yield { message: "hello " }
+    yield { message: "world" }
+
+  resp <- client.clientStream(gen)
+  expect(resp.message).toBe("stream concatenated: hello world")
+
+test! 'clientStream client error', -/>
+  debug("------------------------------ beginning test: clientStream client error")
+  gen = () -*/>
+    yield { message: "hello" }
+    throw new Error("client error")
+    yield { message: "World" }
+
+  try:
+    resp <- client.clientStream(gen)
+    throw new Error("we shouldnt be here")
+  catch err:
+    expect(err.message).toBe("client error")
+
+test! 'clientStream server error', -/>
+  debug("------------------------------ beginning test: clientStream server error")
+  gen = () -*/>
+    yield { message: "hello" }
+    yield { message: "fail" }
+    yield { message: "world" }
+
+  try:
+    resp <- client.clientStream(gen)
+    throw new Error("we shouldnt be here")
+  catch err:
+    expect(err.details).toBe("failed call")

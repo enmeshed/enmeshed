@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+service ResponseStreamService {
+  rpc responseStream(TestMessage) returns (stream TestMessage);
+}
+
+message TestMessage {
+  string message = 1;
+}

@@ -21,6 +21,9 @@ export class RequestContext:
     this.methodName = methodName
     this.fqMethodName = fqMethodName
 
+  describe(): string ->
+    `${this.constructor.name} ${this.id}: requestType ${this.requestType}, method ${this.methodName}`
+
 handleMetadata(metadata) ->
   if not metadata:
     new Metadata()

@@ -3,6 +3,7 @@ import { handleStream } from './StreamHandler'
 import { ServerRequestContext } from './RequestContext'
 
 grpc = require('@grpc/grpc-js')
+debug = require('debug')('@enmeshed/grpc:server')
 
 // XXX: implement and export this!
 class UnaryResponse {}
@@ -40,11 +41,14 @@ wrapRequestStreamHandler(serverEnhancer, methodName, fqn, rsHandler) ->
   grpcRequestStreamHandler(stream, callback): void -/>
     requestContext = new ServerRequestContext(serverEnhancer, 'requestStream', methodName, fqn)
     requestContext.metadata = stream.metadata
+    debug("beginning request stream handler", requestContext.describe())
 
     try:
       serverEnhancer.requestWillBegin(requestContext)
       requestContext.result <- rsHandler(stream, requestContext)
+      debug("request stream handler successful", requestContext.describe())
     catch err:
+      debug("request stream handler failed", requestContext.describe())
       requestContext.error = serverEnhancer.marshalError(err)
 
     dispatchNodeCallback(requestContext, callback)
@@ -68,9 +72,9 @@ wrapResponseStreamGenerator(serverEnhancer, methodName, fqn, responseGenerator) 
 
 // XXX: metadata api
 export class ServerEnhancer:
-  constructor(grpcServer) ->
+  constructor(grpcServer, grpcServerOpts) ->
     if not grpcServer:
-      now grpcServer = new grpc.Server()
+      now grpcServer = new grpc.Server(grpcServerOpts)
     this.grpcServer = grpcServer
 
   // Promisified bindAsync
@@ -84,8 +88,10 @@ export class ServerEnhancer:
     new Promise! (resolve, reject) ->
       server.bindAsync(port, credentials, (err) ->
         if err:
+          debug("server.bind failed", err)
           reject(err)
         else:
+          debug("server bound to", port)
           resolve(true)
       )
 
@@ -138,4 +144,5 @@ export class ServerEnhancer:
         | else: throw new Error("invalid method definition " + name)
       }
     }
+    debug("server.addService", Object.keys(serviceDef), Object.keys(nextBindings))
     this.grpcServer.addService(serviceDef, nextBindings)

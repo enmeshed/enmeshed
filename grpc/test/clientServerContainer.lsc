@@ -1,0 +1,45 @@
+import { DynamicProtocols, ClientEnhancer as baseClientEnhancer, ServerEnhancer as baseServerEnhancer } from '..'
+
+getPort = require('get-port')
+deferred = require('p-defer')
+debug = require('debug')('@enmeshed/grpc:test')
+
+delay(ms) ->
+  def = deferred()
+  setTimeout(-> def.resolve(undefined), ms)
+  def.promise
+
+export class ClientServerContainer:
+  constructor(ClientEnhancer, ServerEnhancer) ->
+    this.ClientEnhancer = ClientEnhancer or baseClientEnhancer
+    this.ServerEnhancer = ServerEnhancer or baseServerEnhancer
+    this.protos = new DynamicProtocols()
+    this.clients = []
+    this.server = new this.ServerEnhancer()
+
+  start(opts = {}): void -/>
+    this.port <- getPort()
+    <- this.server.bind(`0.0.0.0:${this.port}`, opts.serverCredentials)
+    this.server.start()
+    debug("ClientServerContainer: server bound to port", this.port)
+
+  stop(): void -/>
+    debug("ClientServerContainer: beginning shutdown")
+    debug("ClientServerContainer: shutting down clients")
+    clients = this.clients
+    this.clients = []
+    for elem client in clients: client.close()
+
+    // grpc doesn't promisify client closure; wait for it to happen
+    <- delay(1000)
+
+    debug("ClientServerContainer: shutting down server")
+    <- this.server.shutdown()
+
+  getClient(protoName) -/>
+    addr = `127.0.0.1:${this.port}`
+    client <- this.protos.client(protoName, addr)
+    debug("ClientServerContainer: created client for", protoName, "at", addr)
+    enhanced = new this.ClientEnhancer(client)
+    this.clients.push(enhanced)
+    enhanced

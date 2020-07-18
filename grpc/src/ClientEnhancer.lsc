@@ -2,29 +2,40 @@ import { classifyMethod } from '@enmeshed/protobuf'
 import { handleStream, StreamHandler } from './StreamHandler'
 import { ClientRequestContext } from './RequestContext'
 
+deferred = require('p-defer')
+debug = require('debug')('@enmeshed/grpc:client')
 
 wrapUnaryMethod(clientEnhancer, methodName, method, context) ->
   grpcUnary(request, metadata) -/>
     requestContext = new ClientRequestContext(clientEnhancer, 'unary', methodName, metadata, request)
     clientEnhancer.requestWillBegin(requestContext)
 
-    let result, error
+    def = deferred()
 
-    try:
-      now result <- new Promise! (resolve, reject) ->
-        method.call(context, request, requestContext.metadata, (err, response) -> if err: reject(err) else: resolve(response))
-    catch err:
-      // TODO: wrap errors insofar as they may be network errors, remote RPC failures, etc
-      now error = clientEnhancer.unmarshalError(err)
+    serverSideError(err): void ->
+      debug('grpcUnary callFailed:', requestContext.describe(), 'serverSideError:', err)
+      now err = clientEnhancer.unmarshalError(err)
 
-    requestContext.error = error
-    requestContext.response = result
-    clientEnhancer.requestDidEnd(requestContext)
+      requestContext.error = err
+      requestContext.errorOrigin = 'server'
+      clientEnhancer.requestDidEnd(requestContext)
+      def.reject(err)
 
-    if error:
-      throw error
-    else:
-      return result
+    success(response): void ->
+      debug('grpcUnary callSucceeded:', requestContext.describe())
+      requestContext.response = response
+      clientEnhancer.requestDidEnd(requestContext)
+      def.resolve(response)
+
+    debug('grpcUnary call:', requestContext.describe())
+    method.call(context, request, requestContext.metadata, (err, response) ->
+      if err:
+        serverSideError(err)
+      else:
+        success(response)
+    )
+
+    def.promise
 
 // Streams are already async iterable.
 wrapResponseStreamMethod(clientEnhancer, methodName, method, context) ->
@@ -36,59 +47,94 @@ wrapResponseStreamMethod(clientEnhancer, methodName, method, context) ->
     callEnded(error): void ->
       if ended: return
       now ended = true
-      if error: requestContext.error = error
+      if error:
+        now error = clientEnhancer.unmarshalError(error)
+        requestContext.errorOrigin = 'server'
+        requestContext.error = error
+        debug('grpcResponseStream callFailed:', requestContext.describe(), 'serverSideError:', error)
+      else:
+        debug('grpcResponseStream callSucceeded:', requestContext.describe())
       clientEnhancer.requestDidEnd(requestContext)
 
+    debug('grpcResponseStream call:', requestContext.describe())
     stream = method.call(context, request, requestContext.metadata)
 
     stream.once('end', callEnded)
     stream.once('error', callEnded)
     stream.once('close', callEnded)
 
-    return stream
+    wrappedStream() -*/>
+      try:
+        yield* stream
+      catch err:
+        throw clientEnhancer.unmarshalError(err)
+
+    return wrappedStream()
 
 
 // When calling a method with a request stream, the user provides an async
 // generator that produces the stream of values.
 wrapRequestStreamMethod(clientEnhancer, methodName, method, context) ->
-  grpcRequestStream(asyncGenerator, metadata) -/>
+  grpcRequestStream(asyncGenerator, metadata) -/> {
     requestContext = new ClientRequestContext(clientEnhancer, 'requestStream', methodName, metadata, null)
     clientEnhancer.requestWillBegin(requestContext)
 
-    // Promisify the grpc callback
-    new Promise! (resolve, reject): void => {
-      let stream = null
+    let stream = null
+    def = deferred()
 
-      callFailed(localError, remoteError): void ->
-        if remoteError: now remoteError = clientEnhancer.unmarshalError(remoteError)
-        err = localError or remoteError
-        // XXX: Investigate error model, should we propagate client error?
-        if localError: stream.cancel()
-        if err: requestContext.error = err
+    clientSideError(err): void ->
+      debug('grpcRequestStream callFailed:', requestContext.describe(), 'clientSideError:', err)
+
+      // Throw error if not already thrown
+      // XXX: do we send the error to the server?
+      if not requestContext.error:
+        requestContext.error = err
+        requestContext.errorOrigin = 'client'
         clientEnhancer.requestDidEnd(requestContext)
-        reject(err)
+        def.reject(err)
 
-      callSucceeded(response): void ->
-        requestContext.response = response
+      // Cancel the call in the event of a client side error
+      // XXX: due to a resource leak in GRPC, we must defer this
+      setTimeout(-> stream.cancel(), 0)
+
+    serverSideError(err): void ->
+      debug('grpcRequestStream callFailed:', requestContext.describe(), 'serverSideError:', err)
+      now err = clientEnhancer.unmarshalError(err)
+
+      // Throw error if not already thrown
+      if not requestContext.error:
+        requestContext.error = err
+        requestContext.errorOrigin = 'server'
         clientEnhancer.requestDidEnd(requestContext)
-        resolve(response)
+        def.reject(err)
 
-      // Dump from the async generator to the stream
-      writer = (): void -/>
-        try:
-          for await (packet of asyncGenerator(stream)): stream.write(packet)
-        catch err:
-          callFailed(err)
-        finally:
-          stream.end()
+    success(response): void ->
+      debug('grpcRequestStream callSucceeded:', requestContext.describe())
+      requestContext.response = response
+      clientEnhancer.requestDidEnd(requestContext)
+      def.resolve(response)
 
-      now stream = method.call(context, requestContext.metadata, (err, response) ->
-        if err: callFailed(null, err) else: callSucceeded(response)
-      )
+    debug('grpcRequestStream: beginning call', requestContext.describe())
+    now stream = method.call(context, requestContext.metadata, (err, response): void ->
+      if err: serverSideError(err) else: success(response)
+    )
 
+    // Dump from the async generator to the stream
+    writer(): void -/>
+      try:
+        for await (packet of asyncGenerator(stream)): stream.write(packet)
+      catch err:
+        clientSideError(err)
+      finally:
+        debug('grpcRequestStream: closing stream for call', requestContext.describe())
+        stream.end()
 
-      writer()
-    } // new Promise!
+    writer()
+
+    // Return the deferred promise
+    def.promise
+  }
+
 
 // For the time being, just use the streaming API.
 // There is probably some solution involving async generators but in this case
@@ -115,8 +161,7 @@ wrapMethod(enhancer, methodName, method, context) ->
     | 'bidirectionalStream':
       wrapBidiStreamMethod(method, context)
     | else:
-      // XXX: throw?
-      method
+      throw new Error(`Could not determine gRPC call type for method '${methodName}'`)
 
 // Allow clients to be enhanced
 export class ClientEnhancer:

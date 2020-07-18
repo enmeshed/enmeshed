@@ -102,7 +102,7 @@ export handleStream(stream, handler: StreamHandler): void ->
     // cancel the gRPC call.
     if handler._isClient:
       // console.log("cancelling call due to error")
-      stream.cancel()
+      setTimeout(-> stream.cancel(), 0)
 
     if not handler._iFailed:
       handler.error(err, false)
@@ -111,24 +111,28 @@ export handleStream(stream, handler: StreamHandler): void ->
     handler._internal()
   )
 
-  handler.start(stream)
+  pr = try:
+    Promise.resolve(handler.start(stream))
+  catch err:
+    handler.end(err)
+    Promise.resolve(null)
+  pr.catch( (err): void -> handler.end(err) )
 
   stream.on('data', (packet): void ->
-    let hres
-    try:
-      now hres = handler.data(packet, stream)
+    const pr = try:
+      Promise.resolve(handler.data(packet, stream))
     catch err:
       handler.end(err)
-      return
+      Promise.resolve(null)
 
-    // Handler may be sync or async. If it's a promise, handle it
-    if isThenable(hres):
-      hres
-        .then! (val): void ->
-          if val and typeof(val) == "object":
-            stream.write(val)
-        .catch! (err): void ->
-          handler.end(err)
+    pr.then(
+      (val): void ->
+        if val and typeof(val) == "object":
+          stream.write(val)
+    ).catch(
+      (err): void ->
+        handler.end(err)
+    )
   )
 
   stream.on('end', ->

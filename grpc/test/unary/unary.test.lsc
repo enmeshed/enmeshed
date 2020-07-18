@@ -1,0 +1,69 @@
+import { ClientEnhancer } from '../..'
+import { ClientServerContainer } from '../clientServerContainer'
+import cuid from 'cuid'
+{ setLogger, logVerbosity, setLogVerbosity } = require('@grpc/grpc-js')
+
+debug = require('debug')('@enmeshed/grpc:test')
+grpcLogs = require('debug')('@enmeshed/GRPC-LOGS')
+
+setLogger({
+  error(...args): void -> grpcLogs(...args)
+})
+setLogVerbosity(logVerbosity.DEBUG)
+
+testPath = 'test/unary'
+testServiceName = 'UnaryService'
+
+class InstrumentedClientEnhancer extends ClientEnhancer:
+  requestWillBegin(ctx) ->
+    ctx.id = cuid()
+
+container = new ClientServerContainer(InstrumentedClientEnhancer)
+let client, server, serverLogs = []
+
+bindings = {
+  unary(req) -/>
+    { message } = req
+    debug('server for unary: received', message)
+    if message == 'fail':
+      debug('server for unary: failing')
+      throw new Error("failed call")
+
+    { message: 'unary reply: '+ message }
+}
+
+beforeEach(-> now serverLogs = [])
+
+beforeAll(
+  -/>
+    try:
+      container.protos.addProtoPath(testPath)
+
+      container.server.addService(
+        <- container.protos.service(testServiceName)
+        bindings
+      )
+
+      <- container.start()
+
+      now server = container.server
+      now client <- container.getClient(testServiceName)
+    catch err:
+      console.error('STARTUP ERROR', err)
+)
+
+afterAll(
+  -/>
+    try:
+      <- container.stop()
+    catch err:
+      console.error('SHUTDOWN ERROR', err)
+)
+
+test! "unary", -/>
+  resp <- client.unary({message: 'test message'})
+  expect(resp.message).toBe('unary reply: test message')
+
+test! "unary server error", -/>
+  [res, err] <!- client.unary({message: 'fail'})
+  expect(err?.details).toBe('failed call')
