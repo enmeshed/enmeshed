@@ -1,3 +1,3 @@
-# @enmeshed/grpc
+# @enmeshed/protobuf
 
-Utilities for building and calling gRPC services from node.js
+Wrappers and additional API for protobufjs

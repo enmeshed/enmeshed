@@ -7,44 +7,29 @@
   "scripts": {
     "clean": "lerna run clean",
     "build": "lerna run build",
-    "test": "lerna run test:only",
+    "test": "lerna run --parallel test:only",
     "publish:execute": "lerna publish",
-    "publish:full": "run-s build publish:execute"
+    "publish:full": "run-s clean build test publish:execute"
   },
   "dependencies": {
-    "lerna": "^3.15.0"
+    "lerna": "^3.22.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.5.0",
-    "@babel/core": "^7.5.4",
-    "@babel/preset-env": "^7.5.4",
-    "@lightscript/babel-preset": "4.0.0-alpha.25",
-    "@lightscript/eslint-plugin": "^4.0.0-alpha.25",
-    "babel-jest": "^24.8.0",
-    "babel-plugin-istanbul": "^5.1.4",
-    "cross-env": "^5.2.0",
+    "@babel/core": "^7.10.4",
+    "@babel/preset-env": "^7.10.4",
+    "@lightscript/babel-preset": "^4.0.0-alpha.33",
+    "@lightscript/eslint-plugin": "^4.0.0-alpha.33",
+    "babel-jest": "^26.1.0",
+    "babel-plugin-istanbul": "^6.0.0",
+    "cross-env": "^7.0.2",
     "eslint": "^5.16.0",
-    "jest": "^24.8.0",
+    "jest": "^26.1.0",
     "npm-run-all": "^4.1.5",
-    "rimraf": "^2.6.3",
-    "rollup": "^1.16.7",
-    "rollup-plugin-babel": "^4.3.3",
-    "rollup-plugin-node-resolve": "^5.2.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "lsc"
-    ],
-    "transform": {
-      "\\.lsc$": "<rootDir>/node_modules/babel-jest"
-    },
-    "testRegex": "(\\.|/)test\\.lsc$",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/lib/"
-    ]
+    "rimraf": "^3.0.2",
+    "rollup": "^2.21.0",
+    "@rollup/plugin-babel": "^5.1.0",
+    "@rollup/plugin-node-resolve": "^8.4.0",
+    "find-parent-dir": "^0.3.0"
   },
   "workspaces": {
     "packages": [

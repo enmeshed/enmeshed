@@ -1,0 +1,5 @@
+test(
+  'empty'
+  empty(): void -/>
+    console.error('ADD TESTS')
+)
