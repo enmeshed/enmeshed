@@ -1,6 +1,6 @@
 {
   "name": "@enmeshed/grpc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -28,7 +28,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/protobuf": "^1.0.0",
+    "@enmeshed/protobuf": "^1.0.1",
     "@grpc/grpc-js": "^1.1.2",
     "debug": "^4.1.1",
     "p-defer": "^3.0.0"

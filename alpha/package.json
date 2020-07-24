@@ -1,6 +1,6 @@
 {
   "name": "@enmeshed/alpha",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -28,7 +28,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "@enmeshed/errors": "^1.0.6",
+    "@enmeshed/errors": "^1.0.7",
     "p-defer": "^3.0.0"
   },
   "devDependencies": {
