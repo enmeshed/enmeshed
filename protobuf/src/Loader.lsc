@@ -15,6 +15,8 @@ export class Loader:
   options = null
   // Include paths
   includeDirs = null
+  // Use synchronous loading
+  sync = true
 
   constructor(options) ->
     this.options = options or {}
@@ -53,12 +55,18 @@ export class Loader:
     this.pbRoot = pbRoot
     this.tree = {}
 
-  // Asynchronously load a collection of protocol files into the definition
-  // tree.
-  load(filenames) -/>
-    debug("loading", filenames)
+  // Load a collection of protocol files into the definition tree.
+  load(filenames): Promise<void> ->
+    if this.sync:
+      this._loadSync(filenames)
+      Promise.resolve(undefined)
+    else:
+      this._loadAsync(filenames)
+
+  _loadAsync(filenames) -/>
+    debug("asynchronously loading", filenames)
     <- this.pbRoot.load(filenames, this.options)
-    debug("loaded", filenames)
+    debug("asynchronously loaded", filenames)
     this.pbRoot.resolveAll()
     buildReflectionTree(this.pbRoot, this.tree)
     return
