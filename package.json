@@ -6,7 +6,7 @@
   "description": "Monorepo for enmeshed projects.",
   "scripts": {
     "clean": "lerna run clean",
-    "build": "lerna run build",
+    "build": "lerna run --parallel build",
     "test": "lerna run --parallel test:only",
     "publish:execute": "lerna publish",
     "publish:full": "run-s clean build test publish:execute"
