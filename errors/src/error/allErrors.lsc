@@ -6,22 +6,11 @@ import * as OperationErrors from './OperationErrors'
 // Reconstruct from quoted class names to avoid being defeated by
 // name-mangling minifiers.
 bulk = Object.assign({}, CommonErrors, AuthenticationErrors, PreconditionErrors, OperationErrors)
-errors = {...for val v in bulk: {[v.className]: v}}
+for val v in bulk: CommonErrors.CommonError.registerErrorClass(v)
+errors = CommonErrors.CommonError.classNameMap
 
 // Register a new type of error.
-export registerErrorClass(clazz) ->
-  if not (clazz?.prototype instanceof CommonErrors.CommonError):
-    throw new Error(`registerErrorClass: class must extend CommonError.`)
-
-  name = clazz.className
-  if typeof(name) != 'string' or name == '':
-    throw new Error("registerErrorClass: Could not determine class name")
-
-  if errors[name]:
-    throw new Error(
-      `registerErrorClass: An error named '${name}' already exists`
-    )
-
-  errors[name] = clazz
+export registerErrorClass(clazz): void ->
+  CommonErrors.CommonError.registerErrorClass(clazz)
 
 export { errors }

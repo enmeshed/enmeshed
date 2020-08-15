@@ -1,0 +1,36 @@
+import { errors } from '..'
+import util from 'util'
+
+test! 'it works', ->
+  err = new errors.CommonError("hello world")
+  expect(err.message).toBe("hello world")
+  expect(err.httpStatus).toBe(500)
+  expect(err.gRPCStatus).toBe("UNKNOWN")
+  console.error(err)
+  marsh = err.toJSON()
+  console.log(marsh)
+  expect(marsh.code).toBe(2)
+  expect(marsh.message).toBe('hello world')
+  expect(marsh.details[0]['@type']).toBe('type.googleapis.com/mesh.MarshalledError')
+  expect(marsh.details[0].errorClass).toBe('CommonError')
+  err2 = errors.CommonError.fromJSON(marsh)
+  console.error(err2)
+  marsh2 = err2.toJSON()
+  expect(marsh).toEqual(marsh2)
+
+test! 'causality', ->
+  err = new errors.ResourceExhaustedError("disk","20Gb","10Gb")
+  err2 = new errors.CommonError("operation failed", err)
+  marsh = err2.toJSON()
+  console.log(util.inspect(marsh, { depth: 20 }))
+  err3 = errors.CommonError.fromJSON(marsh)
+  marsh2 = err3.toJSON()
+  expect(marsh).toEqual(marsh2)
+
+test! 'ResourceExhaustedError', ->
+  err = new errors.ResourceExhaustedError("disk","20Gb","10Gb")
+  console.error(err)
+  marsh = err.toJSON()
+  console.log(marsh)
+  err2 = errors.CommonError.fromJSON(marsh)
+  console.error(err2)

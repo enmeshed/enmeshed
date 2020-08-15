@@ -1,0 +1,2 @@
+export typeFromUrl(typeUrl) ->
+  (typeUrl.split('/'))[1]

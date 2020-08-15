@@ -18,9 +18,31 @@ export statusToCodeMap = {
   DATA_LOSS: 15
 }
 
+export statusToClassNameMap = {
+  "CANCELLED": "CancelledError"
+  "UNKNOWN": "UnknownError"
+  "INVALID_ARGUMENT": "InvalidArgumentError"
+  "DEADLINE_EXCEEDED": "TimeoutError"
+  "NOT_FOUND": "NotFoundError"
+  "ALREADY_EXISTS": "AlreadyExistsError"
+  "PERMISSION_DENIED": "PermissionDeniedError"
+  "UNAUTHENTICATED": "UnauthenticatedError"
+  "RESOURCE_EXHAUSTED": "ResourceExhaustedError"
+  "FAILED_PRECONDITION": "FailedPreconditionError"
+  "ABORTED": "AbortedError"
+  "OUT_OF_RANGE": "OutOfRangeError"
+  "UNIMPLEMENTED": "UnimplementedError"
+  "INTERNAL": "InternalError"
+  "UNAVAILABLE": "UnavailableError"
+  "DATA_LOSS": "DataLossError"
+}
+
 export codeToStatusMap = {...for key k, val v in statusToCodeMap:
   {[v]: k}
 }
+
+export classNameForStatusCode(code) ->
+  statusToClassNameMap[statusNameForCode(code)]
 
 // Determine the error code associated with the status name, or 2 = UNKNOWN error
 // if not found.

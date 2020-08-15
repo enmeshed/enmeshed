@@ -1,36 +1,17 @@
-import * as ErrorDetails from './ErrorDetail'
+import { ErrorDetail } from './ErrorDetail'
 import * as GoogleErrorDetails from './GoogleErrorDetails'
 
 // Reconstruct from quoted class names to avoid being defeated by
 // name-mangling minifiers.
-bulk = Object.assign({}, ErrorDetails, GoogleErrorDetails)
+bulk = Object.assign({}, { ErrorDetail }, GoogleErrorDetails)
 details = {...for val v in bulk: {[v.className]: v}}
-
-// Create gRPC class map
-gRPCClassMap = {...for val v in bulk:
-  if v.gRPCMessage:
-    {[v.gRPCMessage]: v}
-}
+for val v in bulk: ErrorDetail.registerErrorDetailClass(v)
 
 // Register a new type of error.
 export registerErrorDetailClass(clazz): void ->
-  if not (clazz?.prototype instanceof ErrorDetails.ErrorDetail):
-    throw new Error(`registerErrorDetailClass: class must extend ErrorDetail.`)
-
-  name = clazz.className
-  if typeof(name) != 'string' or name == '':
-    throw new Error("registerErrorDetailClass: Could not determine class name")
-
-  if details[name]:
-    throw new Error(
-      `registerErrorDetailClass: An error detail named '${name}' already exists`
-    )
-
-  details[name] = clazz
-  if clazz.gRPCMessage:
-    gRPCClassMap[clazz.gRPCMessage] = clazz
+  ErrorDetail.registerErrorDetailClass(clazz)
 
 export getDetailForMessageType(ty) ->
-  gRPCClassMap[ty or '']
+  ErrorDetail.gRPCTypeMap[ty or '']
 
 export { details }

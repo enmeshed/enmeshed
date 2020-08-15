@@ -1,6 +1,7 @@
 import { ErrorDetail } from '../detail/ErrorDetail'
 import { RetryInfo } from '../detail/GoogleErrorDetails'
-import { codeForStatusName } from './statusCodeMap'
+import { detailsToJSON, decodeDetailsFromJSON } from '../detail/marshalDetails'
+import { codeForStatusName, classNameForStatusCode } from './statusCodeMap'
 
 dumpError(err): string ->
   if typeof(err?.dump) == 'function':
@@ -21,6 +22,9 @@ export class CommonError extends Error:
   httpStatus = 500
   // gRPC status code enum (google.rpc.Code) associated with this error
   gRPCStatus = "UNKNOWN"
+
+  // Global mapping from class names to errors
+  static classNameMap = {}
 
   constructor(message, cause) ->
     super(message)
@@ -103,6 +107,87 @@ export class CommonError extends Error:
   // Get the gRPC status code (integer) for this error
   getStatusCode(): number ->
     codeForStatusName(this.gRPCStatus)
+
+  // Get the canonical CommonErrors class name for this error
+  getClassName(): string ->
+    this.name
+
+  // Convert to a canonical JSON representation, equivalent to the
+  // canonical JSON encoding of a google.protobuf.Status representing the error.
+  toJSON(opts) -> {
+    code: this.getStatusCode()
+    message: this.message
+    details: detailsToJSON(this, opts)
+  }
+
+  // Rehydrate from a canonical JSON representation
+  static fromJSON(json, opts) -> {
+    // Code 0 = no error, shouldn't get here.
+    if json?.code == 0:
+      return new UnmarshalledError(`Attempted to decode an error with a successful status code.`)
+
+    // Decode error detail information
+    let marshalDetail = null, otherDetails = []
+    try:
+      now [marshalDetail, otherDetails] = if opts?.decodeDetails:
+        opts.decodeDetails(json, opts)
+      else:
+        decodeDetailsFromJSON(json)
+    catch err:
+      // XXX: Add error detail here specifying we couldn't decode details,
+      // and why.
+      null
+
+    // Attempt to figure out the class of the error.
+    let className = opts?.className
+    if not className: now className = marshalDetail?.errorClass
+    // Unspecified class name, do a best-match from status code
+    if not className: now className = classNameForStatusCode(json?.code)
+    clazz = if className: this.classNameMap[className]
+
+    if not clazz:
+      return new UnmarshalledError(`Could not decode error type from status representation.\nOriginal status code: ${json?.code}\nBest-guess error class: ${className}\nOriginal error message:\n-----\n${json?.message}`)
+
+    // Formulate error object from known details
+    err = new clazz()
+    err.message = json?.message
+
+    if marshalDetail:
+      if marshalDetail.stack: err.stack = marshalDetail.stack
+      if marshalDetail.cause:
+        try:
+          cause = if opts?.decodeCause:
+            opts.decodeCause(marshalDetail.cause)
+          else:
+            this.fromJSON(marshalDetail.cause)
+          err.setCause(cause)
+        catch decodingError:
+          err.setCause(new UnmarshalledError(`Error while decoding cause of error: ${decodingError}`))
+          null
+      if marshalDetail.fields:
+        err.fromFields(marshalDetail.fields)
+
+    for elem detail in (otherDetails or []):
+      err.addDetail(detail)
+
+    err
+  } // fromJSON
+
+  static registerErrorClass(clazz): void -> {
+    if clazz != CommonError and (not (clazz?.prototype instanceof CommonError)):
+      throw new Error(`registerErrorClass: class must extend CommonError.`)
+
+    name = clazz.className
+    if typeof(name) != 'string' or name == '':
+      throw new Error("registerErrorClass: Could not determine class name")
+
+    if this.classNameMap[name]:
+      throw new Error(
+        `registerErrorClass: An error named '${name}' already exists`
+      )
+
+    this.classNameMap[name] = clazz
+  } // registerErrorClass
 
 export class UnknownError extends CommonError:
   static className = "UnknownError"

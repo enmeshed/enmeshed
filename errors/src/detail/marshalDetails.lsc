@@ -1,0 +1,36 @@
+import { ErrorDetail } from './ErrorDetail'
+
+// Create marshal detail (mesh.MarshalledError) object for a given error
+export createMarshalDetail(err, opts) ->
+  censor = opts?.censor
+
+  marshalDetail = {
+    errorClass: err.getClassName()
+  }
+  if not censor: marshalDetail.stack = err.stack
+  if err.cause: marshalDetail.cause = err.cause.toJSON(opts)
+  fields = err.toFields(censor)
+  if fields: marshalDetail.fields = fields
+
+  marshalDetail
+
+// Convert error details to canonical JSON rep'n
+export detailsToJSON(err, opts) ->
+  details = [ ...for elem d in (err.details or []): [d.toJSON(opts)] ]
+  marshalDetail = createMarshalDetail(err, opts)
+  marshalDetail['@type'] = "type.googleapis.com/mesh.MarshalledError"
+  details.unshift(marshalDetail)
+  details
+
+// Process JSON details for decoding
+export decodeDetailsFromJSON(json) ->
+  details = json?.details or []
+  let marshalDetail = null
+  rest = [...for elem d in details:
+    if d['@type'] == "type.googleapis.com/mesh.MarshalledError":
+      now marshalDetail = d
+      continue
+    else:
+      [ErrorDetail.fromJSON(d)]
+  ]
+  [ marshalDetail, rest ]

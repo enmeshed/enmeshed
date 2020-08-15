@@ -1,5 +1,7 @@
 // Information attached to an error pertaining to a particular detail of
 // the error.
+import { typeFromUrl } from '../util'
+
 export class ErrorDetail:
   // Quoted name of class. Used for serialization and to avoid mangling
   // with certain minifiers
@@ -13,6 +15,10 @@ export class ErrorDetail:
   // If true, this error detail will be dropped when serializing the error
   // in a production environment
   isProductionSafe = false
+
+  // Global error detail type registry for serialization
+  static gRPCTypeMap = {}
+  static classNameMap = {}
 
   constructor(message) ->
     this.name = this.constructor.className
@@ -39,3 +45,60 @@ export class ErrorDetail:
   // Set fields from an object of the shape produced by toFields().
   fromFields(fields): void ->
     if fields: this.message = fields.message
+
+  toJSON(opts) ->
+    censor = opts?.censor
+    fields = this.toFields(censor)
+    if this.gRPCMessage:
+      {
+        '@type': `type.googleapis.com/${this.gRPCMessage}`
+        ...fields
+      }
+    else:
+      {
+        '@type': 'type.googleapis.com/mesh.MarshalledErrorDetail'
+        fields
+      }
+
+  static fromMarshalledErrorDetail(detail) ->
+    className = detail.errorDetailClass or ''
+    clazz = this.classNameMap[className]
+    if not clazz:
+      return new ErrorDetail(`could not decode error detail of class '${className}'`)
+
+    result = new clazz()
+    result.fromFields(detail.fields or {})
+    result
+
+  static fromAnyEncoding(type = '', json) ->
+    clazz = this.gRPCTypeMap[type]
+    if not clazz:
+      return new ErrorDetail(`could not decode error detail with protobuf type '${type}'`)
+
+    result = new clazz()
+    result.fromFields(json or {})
+    result
+
+  static fromJSON(json, opts) ->
+    type = typeFromUrl(json['@type'] or opts?.type)
+    if type == 'mesh.MarshalledErrorDetail':
+      this.fromMarshalledErrorDetail(json)
+    else:
+      this.fromAnyEncoding(type, json)
+
+  static registerErrorDetailClass(clazz): void ->
+    if (clazz != ErrorDetail) and (not (clazz?.prototype instanceof ErrorDetail)):
+      throw new Error(`registerErrorDetailClass: class must extend ErrorDetail.`)
+
+    name = clazz.className
+    if typeof(name) != 'string' or name == '':
+      throw new Error("registerErrorDetailClass: Could not determine class name")
+
+    if this.classNameMap[name]:
+      throw new Error(
+        `registerErrorDetailClass: An error detail named '${name}' already exists`
+      )
+
+    this.classNameMap[name] = clazz
+    if clazz.gRPCMessage:
+      this.gRPCTypeMap[clazz.gRPCMessage] = clazz
