@@ -34,3 +34,19 @@ test! 'ResourceExhaustedError', ->
   console.log(marsh)
   err2 = errors.CommonError.fromJSON(marsh)
   console.error(err2)
+
+test! 'JS error', ->
+  err = new Error("JS error")
+  console.error(err)
+  marsh = errors.CommonError.toJSON(err)
+  console.log(marsh)
+  err2 = errors.CommonError.fromJSON(marsh)
+  console.error(err2)
+
+test! 'JS type error', ->
+  err = new TypeError("JS error")
+  console.error(err)
+  marsh = errors.CommonError.toJSON(err)
+  console.log(marsh)
+  err2 = errors.CommonError.fromJSON(marsh)
+  console.error(err2)

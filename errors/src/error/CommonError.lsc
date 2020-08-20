@@ -114,11 +114,23 @@ export class CommonError extends Error:
 
   // Convert to a canonical JSON representation, equivalent to the
   // canonical JSON encoding of a google.protobuf.Status representing the error.
-  toJSON(opts) -> {
-    code: this.getStatusCode()
-    message: this.message
-    details: detailsToJSON(this, opts)
-  }
+  toJSON(key, opts) ->
+    this.constructor.toJSON(this, opts)
+
+  static toJSON(obj, opts) -> {
+    if obj instanceof CommonError:
+      {
+        code: obj.getStatusCode()
+        message: obj.message
+        details: detailsToJSON(obj, opts)
+      }
+    else:
+      {
+        code: 2
+        message: obj?.message or 'Unknown error'
+        details: detailsToJSON(obj or {}, Object.assign({}, opts, {errorClass: "UnknownError"}))
+      }
+  } // toJSON
 
   // Rehydrate from a canonical JSON representation
   static fromJSON(json, opts) -> {

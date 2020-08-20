@@ -3,13 +3,14 @@ import { ErrorDetail } from './ErrorDetail'
 // Create marshal detail (mesh.MarshalledError) object for a given error
 export createMarshalDetail(err, opts) ->
   censor = opts?.censor
+  errorClass = opts?.errorClass
 
   marshalDetail = {
-    errorClass: err.getClassName()
+    errorClass: errorClass or err.getClassName()
   }
   if not censor: marshalDetail.stack = err.stack
   if err.cause: marshalDetail.cause = err.cause.toJSON(opts)
-  fields = err.toFields(censor)
+  fields = if err.toFields: err.toFields(censor)
   if fields: marshalDetail.fields = fields
 
   marshalDetail
