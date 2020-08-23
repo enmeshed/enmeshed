@@ -1,4 +1,4 @@
-import { toProvider, Provider } from './Provider'
+import { toProvider, Provider, destroy$ } from './Provider'
 import { Container } from './Namespace'
 import { DependencyNode } from './DependencyNode'
 
@@ -26,6 +26,7 @@ export class Alias extends Provider:
     resource <- this.resolveAlias(deps, setupContext)
 
     node = DependencyNode.of(resource)
+    node._aliasedProvider = node.provider
     node.addTeardownHook((node): void ->
       if namespace.checkName(name) == node.resource:
         debug("Namespace", namespace.name, "deleting alias", name)
@@ -35,7 +36,18 @@ export class Alias extends Provider:
     resource
 
   // Init method should always be a no-op as this is only an alias.
+  // The init method of the underlying resource will already have been
+  // invoked by `injectDependencies`
   static init() -> Promise.resolve(undefined)
+
+  // Destroy method should invoke the original resource's destructor
+  static destroy(resource) ->
+    node = DependencyNode.of(resource)
+    destr = node._aliasedProvider?[destroy$]
+    if node._aliasedProvider:
+      destr.call(node._aliasedProvider, resource)
+    else:
+      Promise.resolve(undefined)
 
   // Called each time the alias needs to be resolved.
   static resolveAlias(deps, setupContext) ->
