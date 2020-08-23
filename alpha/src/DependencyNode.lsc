@@ -76,6 +76,10 @@ export class DependencyNode:
     this.deps.add(...deps)
 
   deref() ->
+    if this.refcount <= 0:
+      debug("DependencyNode for [", this.name, "] - WARNING: deref at zero refcount", this.refcount, " - could indicate dep cycle")
+      return Promise.resolve(undefined)
+
     this.refcount--
     debug("DependencyNode for [", this.name, "] - deref, refcount is", this.refcount)
     if this.refcount < 1:
