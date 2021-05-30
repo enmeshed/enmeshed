@@ -28,7 +28,7 @@
     "lint:fix": "eslint --fix --ext .js,.lsc src"
   },
   "dependencies": {
-    "is-buffer": "^2.0.4"
+    "is-buffer": "^2.0.5"
   },
   "devDependencies": {
     "@enmeshed/protobuf": "^1.0.1",

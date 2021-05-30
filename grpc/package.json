@@ -29,12 +29,11 @@
   },
   "dependencies": {
     "@enmeshed/protobuf": "^1.0.1",
-    "@grpc/grpc-js": "^1.1.2",
-    "debug": "^4.1.1",
+    "@grpc/grpc-js": "^1.3.2",
+    "debug": "^4.3.1",
     "p-defer": "^3.0.0"
   },
   "devDependencies": {
-    "contexty": "^1.0.0",
     "cuid": "^2.1.6",
     "get-port": "^5.1.1",
     "jest": "^26.1.0",
